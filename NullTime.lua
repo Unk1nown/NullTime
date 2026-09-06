@@ -641,6 +641,7 @@ function loadMainScript()
     end
 
     local DupePage     = CreateModule("Dupe")
+    local FarmPage     = CreateModule("Farm")
     local MovementPage = CreateModule("Movement")
     local ESPPage      = CreateModule("ESP")
     local BoulderPage  = CreateModule("Boulder")
@@ -840,6 +841,52 @@ function loadMainScript()
             isCountingDown = false
             if txtLabel then txtLabel.Text = "⏱️ Start Timer & Dupe" end
         end)
+    end)
+
+    CreateSection(FarmPage, "AFK Protection")
+
+    local AntiAfkBtn = CreateButton(FarmPage, "🛡️ Toggle Anti-AFK")
+    local antiAfkActive = false
+    local afkConn = nil
+
+    AntiAfkBtn.MouseButton1Click:Connect(function()
+        antiAfkActive = not antiAfkActive
+        local txt = AntiAfkBtn:FindFirstChild("BtnText")
+        if txt then txt.Text = antiAfkActive and "🛡️ Anti-AFK: ACTIVE" or "🛡️ Toggle Anti-AFK" end
+
+        if antiAfkActive then
+            afkConn = LocalPlayer.Idled:Connect(function()
+                if antiAfkActive then
+                    S.VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                    task.wait(1)
+                    S.VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                end
+            end)
+        else
+            if afkConn then afkConn:Disconnect() end
+        end
+    end)
+
+    CreateSection(FarmPage, "Auto-Farm Options")
+
+    local AutoToolBtn = CreateButton(FarmPage, "⚔️ Auto-Swing Tool")
+    local autoToolActive = false
+
+    AutoToolBtn.MouseButton1Click:Connect(function()
+        autoToolActive = not autoToolActive
+        local txt = AutoToolBtn:FindFirstChild("BtnText")
+        if txt then txt.Text = autoToolActive and "⚔️ Auto-Swing: ACTIVE" or "⚔️ Auto-Swing Tool" end
+
+        if autoToolActive then
+            task.spawn(function()
+                while autoToolActive do
+                    local char = LocalPlayer.Character
+                    local tool = char and char:FindFirstChildOfClass("Tool")
+                    if tool then tool:Activate() end
+                    task.wait(0.1)
+                end
+            end)
+        end
     end)
 
     CreateSection(MovementPage, "Player Speed & Jump")
