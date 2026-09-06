@@ -1,4 +1,4 @@
--- NullTime R V3 (Optimizado para Delta / Mobile)
+-- NullTime V3 
 
 local function safeGetService(serviceName)
     local ok, service = pcall(game.GetService, game, serviceName)
