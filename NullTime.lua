@@ -137,7 +137,7 @@ local ActionBtn = Instance.new("TextButton", AuthFrame)
 ActionBtn.Size = UDim2.new(1, -40, 0, 36)
 ActionBtn.Position = UDim2.new(0, 20, 0, 115)
 ActionBtn.BackgroundColor3 = C.ACCENT
-ActionBtn.Text = "Verificar Roblox User"
+ActionBtn.Text = "Verify Roblox User"
 ActionBtn.TextColor3 = C.TEXT_1
 ActionBtn.Font = Enum.Font.GothamBold
 ActionBtn.TextSize = 13
@@ -158,14 +158,14 @@ local function executeLoginFlow()
     local robloxUser = LocalPlayer.Name:lower()
 
     if currentStep == 1 then
-        StatusLabel.Text = "Validando Roblox User..."
+        StatusLabel.Text = "Searching if you are in database..."
         StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
         ActionBtn.Active = false
 
         task.spawn(function()
             dbCache = fetchRemoteDatabase()
             if not dbCache then
-                promptError("Error al obtener la base de datos!")
+                promptError("Error getting database!")
                 ActionBtn.Active = true
                 return
             end
@@ -181,7 +181,7 @@ local function executeLoginFlow()
             if userFound then
                 validatedUser = robloxUser
                 currentStep = 2
-                StatusLabel.Text = "Usuario verificado! Ingresa la Key"
+                StatusLabel.Text = "User found! Insert the key"
                 StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
                 InputBox.Text = ""
                 InputBox.TextEditable = true
@@ -189,7 +189,7 @@ local function executeLoginFlow()
                 ActionBtn.Text = "Login"
                 ActionBtn.Active = true
             else
-                promptError("Esta cuenta de Roblox no está autorizada!")
+                promptError("you are not autorized!")
                 ActionBtn.Active = true
             end
         end)
@@ -214,13 +214,13 @@ local function executeLoginFlow()
             end
 
             if keyValid then
-                StatusLabel.Text = "Acceso Concedido!"
+                StatusLabel.Text = "Access!"
                 StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
                 task.wait(0.5)
                 AuthSG:Destroy()
                 loadMainScript()
             else
-                promptError("Key inválida o expirada!")
+                promptError("Key invalid of expired!")
                 ActionBtn.Active = true
             end
         end)
@@ -537,7 +537,7 @@ function loadMainScript()
     TitleLbl.Size = UDim2.new(1, -70, 1, 0)
     TitleLbl.Position = UDim2.new(0, 14, 0, 0)
     TitleLbl.BackgroundTransparency = 1; TitleLbl.RichText = true
-    TitleLbl.Text = "NULLTIME <font color='#FF4D4D'>RED EDITION V2</font>"
+    TitleLbl.Text = "NULLTIME <font color='#FF4D4D'>R V3</font>"
     TitleLbl.TextColor3 = C.TEXT_1
     TitleLbl.Font = Enum.Font.GothamBold
     TitleLbl.TextSize = 13
