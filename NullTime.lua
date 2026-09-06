@@ -1687,7 +1687,7 @@ function loadMainScript()
         }
 
         for _, container in ipairs(containers) do
-            if container then
+            if container me then
                 for _, child in ipairs(container:GetChildren()) do
                     if child:IsA("Tool") then
                         if targetSet[child.Name]
@@ -1990,6 +1990,83 @@ function loadMainScript()
                             task.wait(0.1)
                         end
                     end)
+                end
+            end
+        )
+
+    local AutoPromptBtn =
+        CreateToggle(
+            FarmPage,
+            "Auto-Prompt (Ultra-Fast)",
+            false,
+            function(active)
+                env.__NullTimeAutoPrompt = active
+
+                local promptConn = env.__NullTimeAutoPromptConn
+                local heartbeatConn = env.__NullTimeAutoPromptHeartbeat
+
+                if active then
+                    local function processPrompt(prompt)
+                        if not env.__NullTimeAutoPrompt or not prompt:IsA("ProximityPrompt") then
+                            return
+                        end
+
+                        prompt.HoldDuration = 0
+
+                        if typeof(fireproximityprompt) == "function" then
+                            fireproximityprompt(prompt)
+                        else
+                            pcall(function()
+                                prompt:InputHoldBegin()
+                                prompt:InputHoldEnd()
+                            end)
+                        end
+                    end
+
+                    for _, prompt in ipairs(S.Workspace:GetDescendants()) do
+                        if prompt:IsA("ProximityPrompt") then
+                            prompt.HoldDuration = 0
+                        end
+                    end
+
+                    if promptConn then promptConn:Disconnect() end
+                    promptConn = S.ProximityPromptService.PromptShown:Connect(processPrompt)
+                    env.__NullTimeAutoPromptConn = promptConn
+
+                    if heartbeatConn then heartbeatConn:Disconnect() end
+                    heartbeatConn = S.RunService.Heartbeat:Connect(function()
+                        if not env.__NullTimeAutoPrompt or not env.__NullTimeActive then return end
+
+                        local char = LocalPlayer.Character
+                        local root = char and char:FindFirstChild("HumanoidRootPart")
+
+                        if root then
+                            for _, prompt in ipairs(S.Workspace:GetDescendants()) do
+                                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                                    prompt.HoldDuration = 0
+                                    local parent = prompt.Parent
+                                    if parent then
+                                        local pos
+                                        if parent:IsA("BasePart") then
+                                            pos = parent.Position
+                                        elseif parent:IsA("Model") then
+                                            pos = parent:GetPivot().Position
+                                        end
+
+                                        if pos and (root.Position - pos).Magnitude <= (prompt.MaxActivationDistance or 10) then
+                                            processPrompt(prompt)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                    env.__NullTimeAutoPromptHeartbeat = heartbeatConn
+                else
+                    if promptConn then promptConn:Disconnect() end
+                    if heartbeatConn then heartbeatConn:Disconnect() end
+                    env.__NullTimeAutoPromptConn = nil
+                    env.__NullTimeAutoPromptHeartbeat = nil
                 end
             end
         )
@@ -2679,3 +2756,4 @@ InputBox.FocusLost:Connect(function(
         executeLoginFlow()
     end
 end)
+
