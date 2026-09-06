@@ -1,127 +1,453 @@
+-- NullTime R V3
+
 local function safeGetService(serviceName)
-    local service = game:GetService(serviceName)
-    return (type(cloneref) == "function" and cloneref(service)) or service
+    local ok, service = pcall(game.GetService, game, serviceName)
+    if not ok then return nil end
+
+    if type(cloneref) == "function" then
+        local success, ref = pcall(cloneref, service)
+        if success and ref then
+            return ref
+        end
+    end
+
+    return service
 end
 
 local S = {
-    Players           = safeGetService("Players"),
-    CoreGui           = safeGetService("CoreGui"),
-    UserInputService  = safeGetService("UserInputService"),
-    TweenService      = safeGetService("TweenService"),
+    Players = safeGetService("Players"),
+    CoreGui = safeGetService("CoreGui"),
+    UserInputService = safeGetService("UserInputService"),
+    TweenService = safeGetService("TweenService"),
     ReplicatedStorage = safeGetService("ReplicatedStorage"),
-    RunService        = safeGetService("RunService"),
-    Workspace         = safeGetService("Workspace"),
-    VirtualUser       = safeGetService("VirtualUser"),
+    RunService = safeGetService("RunService"),
+    Workspace = safeGetService("Workspace"),
+    VirtualUser = safeGetService("VirtualUser"),
     ProximityPromptService = safeGetService("ProximityPromptService"),
 }
+
 local LocalPlayer = S.Players.LocalPlayer
 
 local function resolveGuiRoot()
-    if type(gethui) == "function" then
-        local ok, h = pcall(gethui)
-        if ok and typeof(h) == "Instance" then return h end
-    end
     local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-    if pg then return pg end
-    return LocalPlayer:WaitForChild("PlayerGui", 5) or S.CoreGui
+
+    if pg then
+        return pg
+    end
+
+    local ok, playerGui = pcall(function()
+        return LocalPlayer:WaitForChild("PlayerGui", 10)
+    end)
+
+    if ok and playerGui then
+        return playerGui
+    end
+
+    if type(gethui) == "function" then
+        local success, h = pcall(gethui)
+
+        if success and typeof(h) == "Instance" then
+            return h
+        end
+    end
+
+    return S.CoreGui
 end
 
 local GuiRoot = resolveGuiRoot()
 
 local C = {
-    BASE       = Color3.fromRGB(20, 10, 10),
-    SURFACE    = Color3.fromRGB(35, 15, 15),
-    ELEVATED   = Color3.fromRGB(50, 20, 20),
-    BORDER     = Color3.fromRGB(150, 30, 30),
-    DIVIDER    = Color3.fromRGB(60, 20, 20),
-    TEXT_1     = Color3.fromRGB(255, 235, 235),
-    TEXT_2     = Color3.fromRGB(230, 150, 150),
-    TEXT_3     = Color3.fromRGB(160, 80, 80),
-    ACCENT     = Color3.fromRGB(220, 35, 35),
-    ACCENT_D   = Color3.fromRGB(150, 20, 20),
+    BASE = Color3.fromRGB(6, 6, 8),
+    SURFACE = Color3.fromRGB(11, 11, 14),
+    ELEVATED = Color3.fromRGB(18, 18, 22),
+
+    BORDER = Color3.fromRGB(40, 40, 47),
+    DIVIDER = Color3.fromRGB(27, 27, 32),
+
+    TEXT_1 = Color3.fromRGB(245, 245, 248),
+    TEXT_2 = Color3.fromRGB(165, 165, 175),
+    TEXT_3 = Color3.fromRGB(95, 95, 105),
+
+    ACCENT = Color3.fromRGB(225, 225, 232),
+    ACCENT_D = Color3.fromRGB(80, 80, 90),
+
+    SUCCESS = Color3.fromRGB(100, 220, 135),
+    WARNING = Color3.fromRGB(225, 190, 90),
+    ERROR = Color3.fromRGB(235, 85, 85)
 }
 
-local function Corner(p, r)
-    local c = Instance.new("UICorner", p)
-    c.CornerRadius = UDim.new(0, r or 6)
+local T_FAST = TweenInfo.new(
+    0.14,
+    Enum.EasingStyle.Quint,
+    Enum.EasingDirection.Out
+)
+
+local T_MED = TweenInfo.new(
+    0.22,
+    Enum.EasingStyle.Quint,
+    Enum.EasingDirection.Out
+)
+
+local T_SMOOTH = TweenInfo.new(
+    0.32,
+    Enum.EasingStyle.Quint,
+    Enum.EasingDirection.Out
+)
+
+local function Tween(obj, info, props)
+    if not obj or not obj.Parent then
+        return
+    end
+
+    local ok, tween = pcall(function()
+        return S.TweenService:Create(obj, info, props)
+    end)
+
+    if ok and tween then
+        tween:Play()
+        return tween
+    end
 end
 
-local function Stroke(p, col, th)
-    local s = Instance.new("UIStroke", p)
-    s.Color = col or C.BORDER; s.Thickness = th or 1
+local function Corner(obj, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 6)
+    c.Parent = obj
+    return c
+end
+
+local function Stroke(obj, color, thickness)
+    local s = Instance.new("UIStroke")
+    s.Color = color or C.BORDER
+    s.Thickness = thickness or 1
+    s.Transparency = 0
+    s.Parent = obj
     return s
 end
 
+local function AddPressAnimation(button)
+    local scale = Instance.new("UIScale")
+    scale.Scale = 1
+    scale.Parent = button
+
+    button.MouseButton1Down:Connect(function()
+        Tween(scale, T_FAST, {
+            Scale = 0.975
+        })
+    end)
+
+    button.MouseButton1Up:Connect(function()
+        Tween(scale, T_FAST, {
+            Scale = 1
+        })
+    end)
+
+    button.MouseEnter:Connect(function()
+        Tween(button, T_FAST, {
+            BackgroundColor3 = C.ELEVATED
+        })
+    end)
+
+    button.MouseLeave:Connect(function()
+        Tween(button, T_FAST, {
+            BackgroundColor3 = C.SURFACE
+        })
+
+        Tween(scale, T_FAST, {
+            Scale = 1
+        })
+    end)
+
+    return scale
+end
+
+local function mountGui(gui)
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 999999
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    pcall(function()
+        if type(syn) == "table"
+            and type(syn.protect_gui) == "function" then
+
+            syn.protect_gui(gui)
+        end
+    end)
+
+    local targets = {}
+
+    if GuiRoot then
+        table.insert(targets, GuiRoot)
+    end
+
+    if type(gethui) == "function" then
+        local ok, h = pcall(gethui)
+
+        if ok and typeof(h) == "Instance" then
+            table.insert(targets, h)
+        end
+    end
+
+    if S.CoreGui then
+        table.insert(targets, S.CoreGui)
+    end
+
+    for _, target in ipairs(targets) do
+        local ok = pcall(function()
+            gui.Parent = target
+        end)
+
+        if ok and gui.Parent == target then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function AddDotWave(parent)
+    task.spawn(function()
+        pcall(function()
+            local bg = Instance.new("Frame")
+            bg.Name = "DotWaveBackground"
+            bg.Size = UDim2.fromScale(1, 1)
+            bg.Position = UDim2.fromScale(0, 0)
+            bg.BackgroundTransparency = 1
+            bg.BorderSizePixel = 0
+            bg.ClipsDescendants = true
+            bg.Active = false
+            bg.Selectable = false
+            bg.ZIndex = 1
+            bg.Parent = parent
+
+            local dots = {}
+
+            local cols = 25
+            local rows = 18
+
+            for y = 1, rows do
+                for x = 1, cols do
+                    local dot = Instance.new("Frame")
+
+                    dot.Name = "Dot"
+                    dot.AnchorPoint = Vector2.new(0.5, 0.5)
+                    dot.Size = UDim2.fromOffset(2, 2)
+
+                    dot.Position = UDim2.fromScale(
+                        (x - 0.5) / cols,
+                        (y - 0.5) / rows
+                    )
+
+                    dot.BackgroundColor3 = C.TEXT_2
+                    dot.BackgroundTransparency = 0.9
+                    dot.BorderSizePixel = 0
+                    dot.Active = false
+                    dot.Selectable = false
+                    dot.ZIndex = 1
+                    dot.Parent = bg
+
+                    Corner(dot, 50)
+
+                    dots[#dots + 1] = {
+                        object = dot,
+                        x = x,
+                        y = y
+                    }
+                end
+            end
+
+            local start = os.clock()
+
+            while bg.Parent do
+                local t = os.clock() - start
+
+                for _, d in ipairs(dots) do
+                    local nx = d.x / cols
+                    local ny = d.y / rows
+
+                    local wave =
+                        math.sin(nx * 7 + t * 1.35) * 0.5 +
+                        math.sin(ny * 6 - t * 1.05) * 0.35 +
+                        math.sin((nx + ny) * 4 + t * 0.75) * 0.15
+
+                    local lift = wave * 4
+                    local size = 1.4 + ((wave + 1) * 0.7)
+
+                    local transparency =
+                        0.91 - ((wave + 1) * 0.075)
+
+                    d.object.Position =
+                        UDim2.fromScale(nx, ny)
+                        + UDim2.fromOffset(0, lift)
+
+                    d.object.Size =
+                        UDim2.fromOffset(size, size)
+
+                    d.object.BackgroundTransparency =
+                        math.clamp(
+                            transparency,
+                            0.68,
+                            0.95
+                        )
+                end
+
+                task.wait(0.035)
+            end
+        end)
+    end)
+end
+
 pcall(function()
-    local oldAuth = GuiRoot:FindFirstChild("NullTime-Auth") or S.CoreGui:FindFirstChild("NullTime-Auth")
-    if oldAuth then oldAuth:Destroy() end
-    local oldUI = GuiRoot:FindFirstChild("NullTime-UI") or S.CoreGui:FindFirstChild("NullTime-UI")
-    if oldUI then oldUI:Destroy() end
+    local names = {
+        "NullTime-Auth",
+        "NullTime-UI"
+    }
+
+    local roots = {
+        GuiRoot,
+        S.CoreGui
+    }
+
+    for _, root in ipairs(roots) do
+        if root then
+            for _, name in ipairs(names) do
+                local old = root:FindFirstChild(name)
+
+                if old then
+                    old:Destroy()
+                end
+            end
+        end
+    end
 end)
 
-local KEYS_URL = "https://raw.githubusercontent.com/Unk1nown/FTI/refs/heads/main/keys.txt"
+local __DHubEnv =
+    (type(getgenv) == "function" and getgenv())
+    or _G
+
+__DHubEnv.__NullTimeActive = false
+
+local KEYS_URL =
+    "https://raw.githubusercontent.com/Unk1nown/FTI/refs/heads/main/keys.txt"
 
 local function fetchRemoteDatabase()
     local ok, res = pcall(function()
         return game:HttpGet(KEYS_URL)
     end)
-    if not ok or type(res) ~= "string" then return nil end
-    
+
+    if not ok or type(res) ~= "string" then
+        return nil
+    end
+
     local blocks = {}
     local currentBlock = {}
+
     for line in res:gmatch("[^\r\n]+") do
-        local k, v = line:match("^%s*([^=]+)%s*=%s*(.-)%s*$")
+        local k, v =
+            line:match("^%s*([^=]+)%s*=%s*(.-)%s*$")
+
         if k and v then
             currentBlock[k:lower()] = v
         end
-        if currentBlock.user and currentBlock.key and currentBlock.days then
+
+        if currentBlock.user
+            and currentBlock.key
+            and currentBlock.days then
+
             table.insert(blocks, {
                 user = currentBlock.user,
-                key  = currentBlock.key,
+                key = currentBlock.key,
                 days = tonumber(currentBlock.days) or -1
             })
+
             currentBlock = {}
         end
     end
+
     return blocks
 end
 
 local AuthSG = Instance.new("ScreenGui")
 AuthSG.Name = "NullTime-Auth"
-AuthSG.ResetOnSpawn = false
-if type(syn) == "table" and type(syn.protect_gui) == "function" then
-    pcall(syn.protect_gui, AuthSG)
-    AuthSG.Parent = S.CoreGui
-else
-    AuthSG.Parent = GuiRoot
+
+if not mountGui(AuthSG) then
+    return
 end
 
-local AuthFrame = Instance.new("Frame", AuthSG)
-AuthFrame.Size = UDim2.new(0, 300, 0, 200)
-AuthFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
+local AuthFrame = Instance.new("Frame")
+AuthFrame.Name = "AuthFrame"
+AuthFrame.Parent = AuthSG
+AuthFrame.Size = UDim2.new(0, 320, 0, 215)
+AuthFrame.Position = UDim2.fromScale(0.5, 0.5)
+AuthFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 AuthFrame.BackgroundColor3 = C.BASE
-Corner(AuthFrame, 8); Stroke(AuthFrame, C.BORDER, 1)
+AuthFrame.ClipsDescendants = true
+AuthFrame.ZIndex = 5
 
-local AuthTitle = Instance.new("TextLabel", AuthFrame)
-AuthTitle.Size = UDim2.new(1, 0, 0, 35)
+Corner(AuthFrame, 9)
+Stroke(AuthFrame, C.BORDER, 1)
+AddDotWave(AuthFrame)
+
+local AuthScale = Instance.new("UIScale")
+AuthScale.Scale = 0.86
+AuthScale.Parent = AuthFrame
+
+local AuthHeader = Instance.new("Frame")
+AuthHeader.Parent = AuthFrame
+AuthHeader.Size = UDim2.new(1, 0, 0, 42)
+AuthHeader.BackgroundColor3 = C.SURFACE
+AuthHeader.BorderSizePixel = 0
+AuthHeader.ZIndex = 5
+
+Corner(AuthHeader, 9)
+
+local AuthHeaderFix = Instance.new("Frame")
+AuthHeaderFix.Parent = AuthHeader
+AuthHeaderFix.Size = UDim2.new(1, 0, 0, 9)
+AuthHeaderFix.Position = UDim2.new(0, 0, 1, -9)
+AuthHeaderFix.BackgroundColor3 = C.SURFACE
+AuthHeaderFix.BorderSizePixel = 0
+AuthHeaderFix.ZIndex = 5
+
+local AuthLine = Instance.new("Frame")
+AuthLine.Parent = AuthHeader
+AuthLine.Size = UDim2.new(0, 42, 0, 3)
+AuthLine.Position = UDim2.new(0, 14, 0, 0)
+AuthLine.BackgroundColor3 = C.ACCENT
+AuthLine.BorderSizePixel = 0
+AuthLine.ZIndex = 7
+
+Corner(AuthLine, 2)
+
+local AuthTitle = Instance.new("TextLabel")
+AuthTitle.Parent = AuthHeader
+AuthTitle.Size = UDim2.new(1, -25, 1, 0)
+AuthTitle.Position = UDim2.new(0, 14, 0, 0)
 AuthTitle.BackgroundTransparency = 1
-AuthTitle.Text = "NULLTIME AUTH"
-AuthTitle.TextColor3 = C.ACCENT
+AuthTitle.Text = "NULLTIME  R V3"
+AuthTitle.TextColor3 = C.TEXT_1
 AuthTitle.Font = Enum.Font.GothamBold
-AuthTitle.TextSize = 14
+AuthTitle.TextSize = 13
+AuthTitle.TextXAlignment = Enum.TextXAlignment.Left
+AuthTitle.ZIndex = 7
 
-local StatusLabel = Instance.new("TextLabel", AuthFrame)
-StatusLabel.Size = UDim2.new(1, -20, 0, 20)
-StatusLabel.Position = UDim2.new(0, 10, 0, 35)
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Parent = AuthFrame
+StatusLabel.Size = UDim2.new(1, -30, 0, 25)
+StatusLabel.Position = UDim2.new(0, 15, 0, 50)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Verificando cuenta..."
+StatusLabel.Text = "Verifying account..."
 StatusLabel.TextColor3 = C.TEXT_2
 StatusLabel.Font = Enum.Font.GothamMedium
 StatusLabel.TextSize = 11
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.ZIndex = 7
 
-local InputBox = Instance.new("TextBox", AuthFrame)
-InputBox.Size = UDim2.new(1, -40, 0, 36)
-InputBox.Position = UDim2.new(0, 20, 0, 65)
+local InputBox = Instance.new("TextBox")
+InputBox.Parent = AuthFrame
+InputBox.Size = UDim2.new(1, -40, 0, 38)
+InputBox.Position = UDim2.new(0, 20, 0, 82)
 InputBox.BackgroundColor3 = C.SURFACE
 InputBox.Text = LocalPlayer.Name
 InputBox.PlaceholderText = "Roblox User..."
@@ -131,17 +457,59 @@ InputBox.Font = Enum.Font.GothamBold
 InputBox.TextSize = 12
 InputBox.ClearTextOnFocus = false
 InputBox.TextEditable = false
-Corner(InputBox, 6); Stroke(InputBox, C.BORDER)
+InputBox.ZIndex = 7
 
-local ActionBtn = Instance.new("TextButton", AuthFrame)
-ActionBtn.Size = UDim2.new(1, -40, 0, 36)
-ActionBtn.Position = UDim2.new(0, 20, 0, 115)
+Corner(InputBox, 6)
+Stroke(InputBox, C.BORDER, 1)
+
+local ActionBtn = Instance.new("TextButton")
+ActionBtn.Parent = AuthFrame
+ActionBtn.Size = UDim2.new(1, -40, 0, 38)
+ActionBtn.Position = UDim2.new(0, 20, 0, 132)
 ActionBtn.BackgroundColor3 = C.ACCENT
 ActionBtn.Text = "Verify Roblox User"
-ActionBtn.TextColor3 = C.TEXT_1
+ActionBtn.TextColor3 = Color3.fromRGB(10, 10, 12)
 ActionBtn.Font = Enum.Font.GothamBold
-ActionBtn.TextSize = 13
+ActionBtn.TextSize = 12
+ActionBtn.AutoButtonColor = false
+ActionBtn.ZIndex = 7
+
 Corner(ActionBtn, 6)
+
+local AuthButtonScale = Instance.new("UIScale")
+AuthButtonScale.Parent = ActionBtn
+
+ActionBtn.MouseButton1Down:Connect(function()
+    Tween(AuthButtonScale, T_FAST, {
+        Scale = 0.97
+    })
+end)
+
+ActionBtn.MouseButton1Up:Connect(function()
+    Tween(AuthButtonScale, T_FAST, {
+        Scale = 1
+    })
+end)
+
+ActionBtn.MouseEnter:Connect(function()
+    Tween(ActionBtn, T_FAST, {
+        BackgroundColor3 = Color3.fromRGB(245, 245, 248)
+    })
+end)
+
+ActionBtn.MouseLeave:Connect(function()
+    Tween(ActionBtn, T_FAST, {
+        BackgroundColor3 = C.ACCENT
+    })
+
+    Tween(AuthButtonScale, T_FAST, {
+        Scale = 1
+    })
+end)
+
+Tween(AuthScale, T_SMOOTH, {
+    Scale = 1
+})
 
 local currentStep = 1
 local validatedUser = ""
@@ -149,516 +517,1054 @@ local dbCache = nil
 
 local function promptError(msg)
     StatusLabel.Text = msg
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+    StatusLabel.TextColor3 = C.ERROR
+
     task.wait(1.5)
-    StatusLabel.TextColor3 = C.TEXT_2
-end
 
-local function executeLoginFlow()
-    local robloxUser = LocalPlayer.Name:lower()
-
-    if currentStep == 1 then
-        StatusLabel.Text = "Searching if you are in database..."
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
-        ActionBtn.Active = false
-
-        task.spawn(function()
-            dbCache = fetchRemoteDatabase()
-            if not dbCache then
-                promptError("Error getting database!")
-                ActionBtn.Active = true
-                return
-            end
-
-            local userFound = false
-            for _, record in ipairs(dbCache) do
-                if record.user:lower() == robloxUser then
-                    userFound = true
-                    break
-                end
-            end
-
-            if userFound then
-                validatedUser = robloxUser
-                currentStep = 2
-                StatusLabel.Text = "User found! Insert the key"
-                StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-                InputBox.Text = ""
-                InputBox.TextEditable = true
-                InputBox.PlaceholderText = "Key..."
-                ActionBtn.Text = "Login"
-                ActionBtn.Active = true
-            else
-                promptError("you are not autorized!")
-                ActionBtn.Active = true
-            end
-        end)
-
-    elseif currentStep == 2 then
-        local keyInput = InputBox.Text:match("^%s*(.-)%s*$")
-        if keyInput == "" then return end
-
-        StatusLabel.Text = "Validando Key..."
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
-        ActionBtn.Active = false
-
-        task.spawn(function()
-            local keyValid = false
-            for _, record in ipairs(dbCache) do
-                if record.user:lower() == validatedUser and record.key == keyInput then
-                    if record.days == 0 or record.days > 0 then
-                        keyValid = true
-                        break
-                    end
-                end
-            end
-
-            if keyValid then
-                StatusLabel.Text = "Access!"
-                StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-                task.wait(0.5)
-                AuthSG:Destroy()
-                loadMainScript()
-            else
-                promptError("Key invalid of expired!")
-                ActionBtn.Active = true
-            end
-        end)
+    if StatusLabel.Parent then
+        StatusLabel.TextColor3 = C.TEXT_2
     end
 end
 
-ActionBtn.MouseButton1Click:Connect(executeLoginFlow)
-InputBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then executeLoginFlow() end
-end)
-
 function loadMainScript()
-    local __DHubEnv = (type(getgenv) == "function" and getgenv()) or _G
-    if __DHubEnv.__NullTimeActive then return end
-    __DHubEnv.__NullTimeActive = true
+    local env =
+        (type(getgenv) == "function" and getgenv())
+        or _G
+
+    env.__NullTimeActive = false
+
+    pcall(function()
+        local old =
+            GuiRoot
+            and GuiRoot:FindFirstChild("NullTime-UI")
+
+        if old then
+            old:Destroy()
+        end
+
+        if S.CoreGui then
+            old =
+                S.CoreGui:FindFirstChild("NullTime-UI")
+
+            if old then
+                old:Destroy()
+            end
+        end
+    end)
 
     local BoulderRarityColors = {
-        Mossite    = Color3.fromRGB(50, 205, 50),
-        Voltite    = Color3.fromRGB(0, 191, 255),
-        Gildrite   = Color3.fromRGB(255, 215, 0),
-        Rimeveil   = Color3.fromRGB(138, 43, 226),
+        Mossite = Color3.fromRGB(50, 205, 50),
+        Voltite = Color3.fromRGB(0, 191, 255),
+        Gildrite = Color3.fromRGB(255, 215, 0),
+        Rimeveil = Color3.fromRGB(138, 43, 226),
         Nocturnite = Color3.fromRGB(255, 0, 85)
     }
 
     local function MakeDraggable(frame, handle)
-        local drag, ds, sp
-        handle.InputBegan:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.MouseButton1
-                or inp.UserInputType == Enum.UserInputType.Touch then
-                drag = true; ds = inp.Position; sp = frame.Position
-                inp.Changed:Connect(function()
-                    if inp.UserInputState == Enum.UserInputState.End then drag = false end
-                end)
+        local dragging = false
+        local dragStart
+        local startPosition
+
+        handle.InputBegan:Connect(function(input)
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1
+                and input.UserInputType ~= Enum.UserInputType.Touch then
+                return
             end
+
+            dragging = true
+            dragStart = input.Position
+            startPosition = frame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
         end)
-        S.UserInputService.InputChanged:Connect(function(inp)
-            if drag and (inp.UserInputType == Enum.UserInputType.MouseMovement
-                or inp.UserInputType == Enum.UserInputType.Touch) then
-                local d = inp.Position - ds
-                frame.Position = UDim2.new(
-                    sp.X.Scale, sp.X.Offset + d.X,
-                    sp.Y.Scale, sp.Y.Offset + d.Y)
+
+        S.UserInputService.InputChanged:Connect(function(input)
+            if not dragging then
+                return
             end
+
+            if input.UserInputType ~= Enum.UserInputType.MouseMovement
+                and input.UserInputType ~= Enum.UserInputType.Touch then
+                return
+            end
+
+            local delta = input.Position - dragStart
+
+            frame.Position = UDim2.new(
+                startPosition.X.Scale,
+                startPosition.X.Offset + delta.X,
+                startPosition.Y.Scale,
+                startPosition.Y.Offset + delta.Y
+            )
         end)
     end
 
     local MainSG = Instance.new("ScreenGui")
     MainSG.Name = "NullTime-UI"
-    MainSG.ResetOnSpawn = false
 
-    if type(syn) == "table" and type(syn.protect_gui) == "function" then
-        pcall(syn.protect_gui, MainSG)
-        MainSG.Parent = S.CoreGui
-    else
-        MainSG.Parent = GuiRoot
+    if not mountGui(MainSG) then
+        env.__NullTimeActive = false
+        return
     end
+
+    env.__NullTimeActive = true
 
     local activeDropdown = nil
 
     local function CreateSection(parent, text)
-        local Lbl = Instance.new("TextLabel", parent)
-        Lbl.Size = UDim2.new(1, 0, 0, 20)
-        Lbl.BackgroundTransparency = 1
-        Lbl.Font = Enum.Font.GothamBold
-        Lbl.TextColor3 = C.TEXT_2
-        Lbl.Text = text:upper()
-        Lbl.TextSize = 11
-        Lbl.TextXAlignment = Enum.TextXAlignment.Left
+        local lbl = Instance.new("TextLabel")
+
+        lbl.Parent = parent
+        lbl.Size = UDim2.new(1, 0, 0, 20)
+        lbl.BackgroundTransparency = 1
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextColor3 = C.TEXT_2
+        lbl.Text = text:upper()
+        lbl.TextSize = 10
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.ZIndex = 10
     end
 
     local function CreateButton(parent, label)
-        local Row = Instance.new("TextButton", parent)
-        Row.Size = UDim2.new(1, 0, 0, 38)
-        Row.BackgroundColor3 = C.SURFACE
-        Row.Text = ""; Row.AutoButtonColor = false
-        Corner(Row, 6); Stroke(Row, C.BORDER)
-        local LeftAccent = Instance.new("Frame", Row)
-        LeftAccent.Size = UDim2.new(0, 3, 0, 18)
-        LeftAccent.Position = UDim2.new(0, 0, 0.5, -9)
-        LeftAccent.BackgroundColor3 = C.ACCENT; Corner(LeftAccent, 1)
-        local LabelTxt = Instance.new("TextLabel", Row)
-        LabelTxt.Name = "BtnText"
-        LabelTxt.Size = UDim2.new(1, -20, 1, 0)
-        LabelTxt.Position = UDim2.new(0, 14, 0, 0)
-        LabelTxt.BackgroundTransparency = 1
-        LabelTxt.Text = label
-        LabelTxt.TextColor3 = C.TEXT_1
-        LabelTxt.Font = Enum.Font.GothamBold
-        LabelTxt.TextSize = 12
-        LabelTxt.TextXAlignment = Enum.TextXAlignment.Left
-        return Row
+        local row = Instance.new("TextButton")
+
+        row.Parent = parent
+        row.Size = UDim2.new(1, 0, 0, 38)
+        row.BackgroundColor3 = C.SURFACE
+        row.Text = ""
+        row.AutoButtonColor = false
+        row.ZIndex = 10
+
+        Corner(row, 6)
+        Stroke(row, C.BORDER)
+
+        local leftAccent = Instance.new("Frame")
+
+        leftAccent.Parent = row
+        leftAccent.Size = UDim2.new(0, 2, 0, 18)
+        leftAccent.Position = UDim2.new(0, 0, 0.5, -9)
+        leftAccent.BackgroundColor3 = C.ACCENT
+        leftAccent.BorderSizePixel = 0
+        leftAccent.ZIndex = 11
+
+        Corner(leftAccent, 2)
+
+        local labelTxt = Instance.new("TextLabel")
+
+        labelTxt.Name = "BtnText"
+        labelTxt.Parent = row
+        labelTxt.Size = UDim2.new(1, -20, 1, 0)
+        labelTxt.Position = UDim2.new(0, 14, 0, 0)
+        labelTxt.BackgroundTransparency = 1
+        labelTxt.Text = label
+        labelTxt.TextColor3 = C.TEXT_1
+        labelTxt.Font = Enum.Font.GothamBold
+        labelTxt.TextSize = 11
+        labelTxt.TextXAlignment = Enum.TextXAlignment.Left
+        labelTxt.ZIndex = 11
+
+        AddPressAnimation(row)
+
+        return row
+    end
+
+    local function CreateToggle(parent, label, default, callback)
+        local state = default == true
+
+        local row = Instance.new("TextButton")
+
+        row.Parent = parent
+        row.Size = UDim2.new(1, 0, 0, 38)
+        row.BackgroundColor3 = C.SURFACE
+        row.Text = ""
+        row.AutoButtonColor = false
+        row.ZIndex = 10
+
+        Corner(row, 6)
+
+        local rowStroke = Stroke(row, C.BORDER)
+
+        local leftAccent = Instance.new("Frame")
+
+        leftAccent.Parent = row
+        leftAccent.Size = UDim2.new(0, 2, 0, 18)
+        leftAccent.Position = UDim2.new(0, 0, 0.5, -9)
+        leftAccent.BorderSizePixel = 0
+        leftAccent.ZIndex = 11
+
+        Corner(leftAccent, 2)
+
+        local labelTxt = Instance.new("TextLabel")
+
+        labelTxt.Name = "BtnText"
+        labelTxt.Parent = row
+        labelTxt.Size = UDim2.new(1, -68, 1, 0)
+        labelTxt.Position = UDim2.new(0, 14, 0, 0)
+        labelTxt.BackgroundTransparency = 1
+        labelTxt.Text = label
+        labelTxt.TextColor3 = C.TEXT_1
+        labelTxt.Font = Enum.Font.GothamBold
+        labelTxt.TextSize = 11
+        labelTxt.TextXAlignment = Enum.TextXAlignment.Left
+        labelTxt.ZIndex = 11
+
+        local switch = Instance.new("Frame")
+
+        switch.Parent = row
+        switch.Size = UDim2.new(0, 38, 0, 20)
+        switch.Position = UDim2.new(1, -50, 0.5, -10)
+        switch.BackgroundColor3 = C.ELEVATED
+        switch.BorderSizePixel = 0
+        switch.Active = false
+        switch.ZIndex = 12
+
+        Corner(switch, 10)
+
+        local switchStroke = Stroke(
+            switch,
+            C.BORDER,
+            1
+        )
+
+        local knob = Instance.new("Frame")
+
+        knob.Parent = switch
+        knob.Size = UDim2.new(0, 14, 0, 14)
+        knob.Position = UDim2.new(0, 3, 0.5, -7)
+        knob.BackgroundColor3 = C.TEXT_3
+        knob.BorderSizePixel = 0
+        knob.Active = false
+        knob.ZIndex = 13
+
+        Corner(knob, 50)
+
+        local pressScale = Instance.new("UIScale")
+        pressScale.Parent = row
+
+        local function updateVisual(instant)
+            local targetBg =
+                state
+                and C.ACCENT_D
+                or C.ELEVATED
+
+            local targetKnob =
+                state
+                and C.ACCENT
+                or C.TEXT_3
+
+            local targetStroke =
+                state
+                and C.ACCENT_D
+                or C.BORDER
+
+            local targetPos =
+                state
+                and UDim2.new(1, -17, 0.5, -7)
+                or UDim2.new(0, 3, 0.5, -7)
+
+            local targetAccent =
+                state
+                and C.ACCENT
+                or C.DIVIDER
+
+            if instant then
+                switch.BackgroundColor3 = targetBg
+                switchStroke.Color = targetStroke
+                knob.BackgroundColor3 = targetKnob
+                knob.Position = targetPos
+                leftAccent.BackgroundColor3 = targetAccent
+            else
+                Tween(switch, T_MED, {
+                    BackgroundColor3 = targetBg
+                })
+
+                Tween(switchStroke, T_MED, {
+                    Color = targetStroke
+                })
+
+                Tween(knob, T_MED, {
+                    Position = targetPos,
+                    BackgroundColor3 = targetKnob
+                })
+
+                Tween(leftAccent, T_MED, {
+                    BackgroundColor3 = targetAccent
+                })
+            end
+        end
+
+        local function setState(value, fireCallback)
+            state = value == true
+
+            updateVisual(false)
+
+            if fireCallback and callback then
+                callback(state)
+            end
+        end
+
+        row.MouseButton1Down:Connect(function()
+            Tween(pressScale, T_FAST, {
+                Scale = 0.975
+            })
+        end)
+
+        row.MouseButton1Up:Connect(function()
+            Tween(pressScale, T_FAST, {
+                Scale = 1
+            })
+        end)
+
+        row.MouseLeave:Connect(function()
+            Tween(pressScale, T_FAST, {
+                Scale = 1
+            })
+        end)
+
+        row.MouseButton1Click:Connect(function()
+            setState(not state, true)
+        end)
+
+        updateVisual(true)
+
+        if state and callback then
+            task.defer(function()
+                callback(true)
+            end)
+        end
+
+        return row, setState, function()
+            return state
+        end
     end
 
     local function CreateInput(parent, label, defaultText, callback)
-        local Row = Instance.new("Frame", parent)
-        Row.Size = UDim2.new(1, 0, 0, 42)
-        Row.BackgroundColor3 = C.SURFACE
-        Corner(Row, 6); Stroke(Row, C.BORDER)
+        local row = Instance.new("Frame")
 
-        local LabelTxt = Instance.new("TextLabel", Row)
-        LabelTxt.Size = UDim2.new(0.5, 0, 1, 0)
-        LabelTxt.Position = UDim2.new(0, 14, 0, 0)
-        LabelTxt.BackgroundTransparency = 1
-        LabelTxt.Text = label
-        LabelTxt.TextColor3 = C.TEXT_2
-        LabelTxt.Font = Enum.Font.GothamMedium
-        LabelTxt.TextSize = 11
-        LabelTxt.TextXAlignment = Enum.TextXAlignment.Left
+        row.Parent = parent
+        row.Size = UDim2.new(1, 0, 0, 42)
+        row.BackgroundColor3 = C.SURFACE
+        row.ZIndex = 10
 
-        local Box = Instance.new("TextBox", Row)
-        Box.Size = UDim2.new(0.45, 0, 0, 28)
-        Box.Position = UDim2.new(0.52, 0, 0.5, -14)
-        Box.BackgroundColor3 = C.ELEVATED
-        Corner(Box, 4); Stroke(Box, C.DIVIDER)
-        Box.Text = tostring(defaultText or "")
-        Box.TextColor3 = C.TEXT_1
-        Box.Font = Enum.Font.GothamBold
-        Box.TextSize = 12
-        Box.ClearTextOnFocus = false
+        Corner(row, 6)
+        Stroke(row, C.BORDER)
 
-        Box.FocusLost:Connect(function()
-            if callback then callback(Box.Text) end
+        local labelTxt = Instance.new("TextLabel")
+
+        labelTxt.Parent = row
+        labelTxt.Size = UDim2.new(0.5, 0, 1, 0)
+        labelTxt.Position = UDim2.new(0, 14, 0, 0)
+        labelTxt.BackgroundTransparency = 1
+        labelTxt.Text = label
+        labelTxt.TextColor3 = C.TEXT_2
+        labelTxt.Font = Enum.Font.GothamMedium
+        labelTxt.TextSize = 10
+        labelTxt.TextXAlignment = Enum.TextXAlignment.Left
+        labelTxt.ZIndex = 11
+
+        local box = Instance.new("TextBox")
+
+        box.Parent = row
+        box.Size = UDim2.new(0.45, 0, 0, 28)
+        box.Position = UDim2.new(0.52, 0, 0.5, -14)
+        box.BackgroundColor3 = C.ELEVATED
+        box.Text = tostring(defaultText or "")
+        box.TextColor3 = C.TEXT_1
+        box.Font = Enum.Font.GothamBold
+        box.TextSize = 11
+        box.ClearTextOnFocus = false
+        box.ZIndex = 12
+
+        Corner(box, 4)
+        Stroke(box, C.DIVIDER)
+
+        box.FocusLost:Connect(function()
+            if callback then
+                callback(box.Text)
+            end
         end)
 
-        return Row, Box
+        return row, box
     end
 
     local function CreateDropdown(parent, label, options, isMulti, callback)
         local selected = isMulti and {} or ""
+
         local function displayText()
             if isMulti then
                 local keys = {}
-                for k in pairs(selected) do keys[#keys+1] = k end
-                if #keys == 0 then return "None" end
+
+                for k in pairs(selected) do
+                    keys[#keys + 1] = k
+                end
+
+                if #keys == 0 then
+                    return "None"
+                end
+
                 table.sort(keys)
-                if #keys == 1 then return keys[1] end
+
+                if #keys == 1 then
+                    return keys[1]
+                end
+
                 return keys[1] .. " +" .. tostring(#keys - 1)
-            else
-                return selected == "" and "None" or selected
             end
+
+            return selected == "" and "None" or selected
         end
-        local Row = Instance.new("Frame", parent)
-        Row.Size = UDim2.new(1, 0, 0, 42)
-        Row.BackgroundColor3 = C.SURFACE
-        Corner(Row, 6); Stroke(Row, C.BORDER)
-        local LabelTxt = Instance.new("TextLabel", Row)
-        LabelTxt.Size = UDim2.new(0.42, 0, 1, 0)
-        LabelTxt.Position = UDim2.new(0, 14, 0, 0)
-        LabelTxt.BackgroundTransparency = 1
-        LabelTxt.Text = label
-        LabelTxt.TextColor3 = C.TEXT_2
-        LabelTxt.Font = Enum.Font.GothamMedium
-        LabelTxt.TextSize = 11
-        LabelTxt.TextXAlignment = Enum.TextXAlignment.Left
-        local DropBtn = Instance.new("TextButton", Row)
-        DropBtn.Size = UDim2.new(0.53, 0, 0, 28)
-        DropBtn.Position = UDim2.new(0.44, 0, 0.5, -14)
-        DropBtn.BackgroundColor3 = C.ELEVATED
-        Corner(DropBtn, 4); Stroke(DropBtn, C.DIVIDER)
-        DropBtn.Text = displayText()
-        DropBtn.TextColor3 = C.TEXT_1
-        DropBtn.Font = Enum.Font.GothamMedium
-        DropBtn.TextSize = 11
-        DropBtn.AutoButtonColor = false
 
-        local Panel = Instance.new("Frame", MainSG)
-        Panel.Size = UDim2.new(0, 200, 0, math.min(#options * 28 + 36, 180))
-        Panel.BackgroundColor3 = C.ELEVATED
-        Corner(Panel, 6); Stroke(Panel, C.BORDER)
-        Panel.Visible = false; Panel.ZIndex = 20
+        local row = Instance.new("Frame")
 
-        local PanelScroll = Instance.new("ScrollingFrame", Panel)
-        PanelScroll.Size = UDim2.new(1, -4, 1, -4)
-        PanelScroll.Position = UDim2.new(0, 2, 0, 2)
-        PanelScroll.BackgroundTransparency = 1
-        PanelScroll.BorderSizePixel = 0
-        PanelScroll.ScrollBarThickness = 3
-        PanelScroll.ZIndex = 20
+        row.Parent = parent
+        row.Size = UDim2.new(1, 0, 0, 42)
+        row.BackgroundColor3 = C.SURFACE
+        row.ZIndex = 10
 
-        local PanelLayout = Instance.new("UIListLayout", PanelScroll)
-        PanelLayout.Padding = UDim.new(0, 2)
-        PanelLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        PanelLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            PanelScroll.CanvasSize = UDim2.new(0, 0, 0, PanelLayout.AbsoluteContentSize.Y + 6)
+        Corner(row, 6)
+        Stroke(row, C.BORDER)
+
+        local labelTxt = Instance.new("TextLabel")
+
+        labelTxt.Parent = row
+        labelTxt.Size = UDim2.new(0.42, 0, 1, 0)
+        labelTxt.Position = UDim2.new(0, 14, 0, 0)
+        labelTxt.BackgroundTransparency = 1
+        labelTxt.Text = label
+        labelTxt.TextColor3 = C.TEXT_2
+        labelTxt.Font = Enum.Font.GothamMedium
+        labelTxt.TextSize = 10
+        labelTxt.TextXAlignment = Enum.TextXAlignment.Left
+        labelTxt.ZIndex = 11
+
+        local dropBtn = Instance.new("TextButton")
+
+        dropBtn.Parent = row
+        dropBtn.Size = UDim2.new(0.53, 0, 0, 28)
+        dropBtn.Position = UDim2.new(0.44, 0, 0.5, -14)
+        dropBtn.BackgroundColor3 = C.ELEVATED
+        dropBtn.Text = displayText()
+        dropBtn.TextColor3 = C.TEXT_1
+        dropBtn.Font = Enum.Font.GothamMedium
+        dropBtn.TextSize = 10
+        dropBtn.AutoButtonColor = false
+        dropBtn.ZIndex = 12
+
+        Corner(dropBtn, 4)
+        Stroke(dropBtn, C.DIVIDER)
+
+        local arrow = Instance.new("TextLabel")
+
+        arrow.Parent = dropBtn
+        arrow.Size = UDim2.new(0, 20, 1, 0)
+        arrow.Position = UDim2.new(1, -22, 0, 0)
+        arrow.BackgroundTransparency = 1
+        arrow.Text = "âŒ„"
+        arrow.TextColor3 = C.TEXT_3
+        arrow.Font = Enum.Font.GothamBold
+        arrow.TextSize = 12
+        arrow.ZIndex = 13
+
+        local panel = Instance.new("Frame")
+
+        panel.Parent = MainSG
+        panel.Size = UDim2.new(
+            0,
+            200,
+            0,
+            math.min(#options * 28 + 36, 180)
+        )
+        panel.BackgroundColor3 = C.ELEVATED
+        panel.Visible = false
+        panel.ZIndex = 50
+
+        Corner(panel, 6)
+        Stroke(panel, C.BORDER)
+
+        local panelScale = Instance.new("UIScale")
+        panelScale.Scale = 0.96
+        panelScale.Parent = panel
+
+        local panelScroll = Instance.new("ScrollingFrame")
+
+        panelScroll.Parent = panel
+        panelScroll.Size = UDim2.new(1, -4, 1, -4)
+        panelScroll.Position = UDim2.new(0, 2, 0, 2)
+        panelScroll.BackgroundTransparency = 1
+        panelScroll.BorderSizePixel = 0
+        panelScroll.ScrollBarThickness = 2
+        panelScroll.ZIndex = 51
+
+        local panelLayout = Instance.new("UIListLayout")
+
+        panelLayout.Parent = panelScroll
+        panelLayout.Padding = UDim.new(0, 2)
+        panelLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+        panelLayout:GetPropertyChangedSignal(
+            "AbsoluteContentSize"
+        ):Connect(function()
+            panelScroll.CanvasSize =
+                UDim2.new(
+                    0,
+                    0,
+                    0,
+                    panelLayout.AbsoluteContentSize.Y + 6
+                )
         end)
 
-        local function rebuildOptions(optList)
-            for _, ch in ipairs(PanelScroll:GetChildren()) do
-                if ch:IsA("TextButton") then ch:Destroy() end
+        local function closePanel()
+            if not panel.Visible then
+                return
             end
-            local clearBtn = Instance.new("TextButton", PanelScroll)
+
+            Tween(panelScale, T_FAST, {
+                Scale = 0.96
+            })
+
+            task.delay(0.12, function()
+                if panel.Parent then
+                    panel.Visible = false
+
+                    if activeDropdown == panel then
+                        activeDropdown = nil
+                    end
+                end
+            end)
+        end
+
+        local function rebuildOptions(optList)
+            for _, child in ipairs(panelScroll:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
+            end
+
+            local clearBtn = Instance.new("TextButton")
+
+            clearBtn.Parent = panelScroll
             clearBtn.Size = UDim2.new(1, 0, 0, 26)
             clearBtn.BackgroundTransparency = 1
-            clearBtn.Text = "None"; clearBtn.TextColor3 = C.TEXT_3
+            clearBtn.Text = "None"
+            clearBtn.TextColor3 = C.TEXT_3
             clearBtn.Font = Enum.Font.GothamMedium
-            clearBtn.TextSize = 11; clearBtn.ZIndex = 21
+            clearBtn.TextSize = 10
+            clearBtn.ZIndex = 52
+            clearBtn.AutoButtonColor = false
+
             clearBtn.MouseButton1Click:Connect(function()
-                if isMulti then table.clear(selected) else selected = "" end
-                DropBtn.Text = displayText()
-                Panel.Visible = false; activeDropdown = nil
-                callback(isMulti and {} or "")
+                if isMulti then
+                    table.clear(selected)
+                else
+                    selected = ""
+                end
+
+                dropBtn.Text = displayText()
+
+                closePanel()
+
+                if callback then
+                    callback(isMulti and {} or "")
+                end
             end)
+
             for _, opt in ipairs(optList) do
-                local isOn = isMulti and selected[opt] == true or selected == opt
-                local OBtn = Instance.new("TextButton", PanelScroll)
-                OBtn.Size = UDim2.new(1, 0, 0, 26)
-                OBtn.BackgroundColor3 = isOn and C.ACCENT_D or C.ELEVATED
-                OBtn.BorderSizePixel = 0; Corner(OBtn, 4)
-                OBtn.Text = opt
-                OBtn.TextColor3 = isOn and C.TEXT_1 or C.TEXT_2
-                OBtn.Font = Enum.Font.GothamMedium
-                OBtn.TextSize = 11; OBtn.ZIndex = 21
-                OBtn.MouseButton1Click:Connect(function()
+                local isOn =
+                    (isMulti and selected[opt] == true)
+                    or (not isMulti and selected == opt)
+
+                local optBtn = Instance.new("TextButton")
+
+                optBtn.Parent = panelScroll
+                optBtn.Size = UDim2.new(1, 0, 0, 26)
+                optBtn.BackgroundColor3 =
+                    isOn and C.ACCENT_D or C.ELEVATED
+                optBtn.BorderSizePixel = 0
+                optBtn.Text = opt
+                optBtn.TextColor3 =
+                    isOn and C.TEXT_1 or C.TEXT_2
+                optBtn.Font = Enum.Font.GothamMedium
+                optBtn.TextSize = 10
+                optBtn.ZIndex = 52
+                optBtn.AutoButtonColor = false
+
+                Corner(optBtn, 4)
+
+                optBtn.MouseButton1Click:Connect(function()
                     if isMulti then
-                        if selected[opt] then selected[opt] = nil else selected[opt] = true end
-                        for _, child in ipairs(PanelScroll:GetChildren()) do
-                            if child:IsA("TextButton") and child ~= clearBtn then
-                                local on = selected[child.Text] == true
-                                child.BackgroundColor3 = on and C.ACCENT_D or C.ELEVATED
-                                child.TextColor3 = on and C.TEXT_1 or C.TEXT_2
+                        if selected[opt] then
+                            selected[opt] = nil
+                        else
+                            selected[opt] = true
+                        end
+
+                        for _, child in ipairs(
+                            panelScroll:GetChildren()
+                        ) do
+                            if child:IsA("TextButton")
+                                and child ~= clearBtn then
+
+                                local on =
+                                    selected[child.Text] == true
+
+                                child.BackgroundColor3 =
+                                    on
+                                    and C.ACCENT_D
+                                    or C.ELEVATED
+
+                                child.TextColor3 =
+                                    on
+                                    and C.TEXT_1
+                                    or C.TEXT_2
                             end
                         end
                     else
-                        selected = (opt == "None") and "" or opt
-                        Panel.Visible = false; activeDropdown = nil
+                        selected = opt
+                        closePanel()
                     end
-                    DropBtn.Text = displayText()
+
+                    dropBtn.Text = displayText()
+
                     local result
+
                     if isMulti then
                         result = {}
-                        for k in pairs(selected) do result[#result+1] = k end
+
+                        for k in pairs(selected) do
+                            result[#result + 1] = k
+                        end
                     else
                         result = selected
                     end
-                    callback(result)
+
+                    if callback then
+                        callback(result)
+                    end
                 end)
             end
         end
 
         rebuildOptions(options)
 
-        DropBtn.MouseButton1Click:Connect(function()
-            if Panel.Visible then Panel.Visible = false; activeDropdown = nil; return end
-            if activeDropdown and activeDropdown ~= Panel then
+        dropBtn.MouseButton1Click:Connect(function()
+            if panel.Visible then
+                closePanel()
+                return
+            end
+
+            if activeDropdown and activeDropdown ~= panel then
                 activeDropdown.Visible = false
             end
-            local absPos  = DropBtn.AbsolutePosition
-            local absSize = DropBtn.AbsoluteSize
-            Panel.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y + 4)
-            Panel.Visible = true; activeDropdown = Panel
+
+            local absPos = dropBtn.AbsolutePosition
+            local absSize = dropBtn.AbsoluteSize
+
+            panel.Position = UDim2.fromOffset(
+                absPos.X,
+                absPos.Y + absSize.Y + 4
+            )
+
+            panelScale.Scale = 0.96
+            panel.Visible = true
+            activeDropdown = panel
+
+            Tween(panelScale, T_MED, {
+                Scale = 1
+            })
         end)
 
-        local function SetOptions(newOpts)
-            rebuildOptions(newOpts)
-            Panel.Size = UDim2.new(0, 200, 0, math.min(#newOpts * 28 + 36, 180))
+        local function SetOptions(newOptions)
+            rebuildOptions(newOptions)
+
+            panel.Size = UDim2.new(
+                0,
+                200,
+                0,
+                math.min(
+                    #newOptions * 28 + 36,
+                    180
+                )
+            )
         end
+
         local function GetSelected()
             if isMulti then
-                local r = {}
-                for k in pairs(selected) do r[#r+1] = k end
-                return r
+                local result = {}
+
+                for k in pairs(selected) do
+                    result[#result + 1] = k
+                end
+
+                return result
             end
+
             return selected
         end
 
-        return Row, SetOptions, GetSelected
+        return row, SetOptions, GetSelected
     end
 
     S.UserInputService.InputBegan:Connect(function(input)
-        if not activeDropdown or not activeDropdown.Visible then return end
+        if not activeDropdown
+            or not activeDropdown.Visible then
+            return
+        end
+
         if input.UserInputType ~= Enum.UserInputType.MouseButton1
-            and input.UserInputType ~= Enum.UserInputType.Touch then return end
-        local p    = input.Position
-        local pos  = activeDropdown.AbsolutePosition
+            and input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+
+        local p = input.Position
+        local pos = activeDropdown.AbsolutePosition
         local size = activeDropdown.AbsoluteSize
-        if p.X >= pos.X and p.X <= pos.X + size.X
-            and p.Y >= pos.Y and p.Y <= pos.Y + size.Y then return end
-        activeDropdown.Visible = false; activeDropdown = nil
+
+        if p.X >= pos.X
+            and p.X <= pos.X + size.X
+            and p.Y >= pos.Y
+            and p.Y <= pos.Y + size.Y then
+            return
+        end
+
+        activeDropdown.Visible = false
+        activeDropdown = nil
     end)
 
-    local Root = Instance.new("Frame", MainSG)
-    Root.Size = UDim2.new(0.9, 0, 0.8, 0)
+    local Root = Instance.new("Frame")
+
+    Root.Name = "Root"
+    Root.Parent = MainSG
+    Root.Size = UDim2.new(0.9, 0, 0.78, 0)
     Root.SizeConstraint = Enum.SizeConstraint.RelativeYY
-    Root.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Root.Position = UDim2.fromScale(0.5, 0.5)
     Root.AnchorPoint = Vector2.new(0.5, 0.5)
     Root.BackgroundTransparency = 1
+    Root.ZIndex = 2
 
-    local UIConstraint = Instance.new("UISizeConstraint", Root)
-    UIConstraint.MinSize = Vector2.new(340, 280)
+    local UIConstraint = Instance.new("UISizeConstraint")
+
+    UIConstraint.Parent = Root
+    UIConstraint.MinSize = Vector2.new(300, 250)
     UIConstraint.MaxSize = Vector2.new(460, 360)
 
-    local Win = Instance.new("Frame", Root)
-    Win.Size = UDim2.new(1, 0, 1, 0)
+    local RootScale = Instance.new("UIScale")
+
+    RootScale.Scale = 0.88
+    RootScale.Parent = Root
+
+    local Win = Instance.new("Frame")
+
+    Win.Name = "Window"
+    Win.Parent = Root
+    Win.Size = UDim2.fromScale(1, 1)
     Win.BackgroundColor3 = C.BASE
     Win.ClipsDescendants = true
-    Corner(Win, 8); Stroke(Win, C.BORDER, 1)
+    Win.ZIndex = 2
 
-    local Header = Instance.new("Frame", Win)
+    Corner(Win, 9)
+    Stroke(Win, C.BORDER, 1)
+    AddDotWave(Win)
+
+    local Header = Instance.new("Frame")
+
+    Header.Parent = Win
     Header.Size = UDim2.new(1, 0, 0, 42)
-    Header.BackgroundColor3 = C.SURFACE; Corner(Header, 8)
+    Header.BackgroundColor3 = C.SURFACE
+    Header.BorderSizePixel = 0
+    Header.ZIndex = 5
 
-    local HFix = Instance.new("Frame", Header)
-    HFix.Size = UDim2.new(1, 0, 0, 8)
-    HFix.Position = UDim2.new(0, 0, 1, -8)
-    HFix.BackgroundColor3 = C.SURFACE; HFix.BorderSizePixel = 0
+    Corner(Header, 9)
 
-    local AccentLine = Instance.new("Frame", Header)
-    AccentLine.Size = UDim2.new(0, 40, 0, 3)
+    local HeaderFix = Instance.new("Frame")
+
+    HeaderFix.Parent = Header
+    HeaderFix.Size = UDim2.new(1, 0, 0, 9)
+    HeaderFix.Position = UDim2.new(0, 0, 1, -9)
+    HeaderFix.BackgroundColor3 = C.SURFACE
+    HeaderFix.BorderSizePixel = 0
+    HeaderFix.ZIndex = 5
+
+    local AccentLine = Instance.new("Frame")
+
+    AccentLine.Parent = Header
+    AccentLine.Size = UDim2.new(0, 42, 0, 3)
     AccentLine.Position = UDim2.new(0, 14, 0, 0)
     AccentLine.BackgroundColor3 = C.ACCENT
-    AccentLine.BorderSizePixel = 0; Corner(AccentLine, 2)
+    AccentLine.BorderSizePixel = 0
+    AccentLine.ZIndex = 7
 
-    local TitleLbl = Instance.new("TextLabel", Header)
+    Corner(AccentLine, 2)
+
+    local TitleLbl = Instance.new("TextLabel")
+
+    TitleLbl.Parent = Header
     TitleLbl.Size = UDim2.new(1, -70, 1, 0)
     TitleLbl.Position = UDim2.new(0, 14, 0, 0)
-    TitleLbl.BackgroundTransparency = 1; TitleLbl.RichText = true
-    TitleLbl.Text = "NULLTIME <font color='#FF4D4D'>R V3</font>"
+    TitleLbl.BackgroundTransparency = 1
+    TitleLbl.Text = "NULLTIME  R V3"
     TitleLbl.TextColor3 = C.TEXT_1
     TitleLbl.Font = Enum.Font.GothamBold
     TitleLbl.TextSize = 13
     TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLbl.ZIndex = 7
 
     MakeDraggable(Root, Header)
 
-    local ToggleBtn = Instance.new("TextButton", MainSG)
-    ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-    ToggleBtn.Position = UDim2.new(0, 15, 0.5, -25)
+    local ToggleBtn = Instance.new("TextButton")
+
+    ToggleBtn.Parent = MainSG
+    ToggleBtn.Size = UDim2.new(0, 46, 0, 46)
+    ToggleBtn.Position = UDim2.new(0, 12, 0.5, -23)
     ToggleBtn.BackgroundColor3 = C.SURFACE
-    ToggleBtn.Text = "🔴"
-    ToggleBtn.TextSize = 20
-    Corner(ToggleBtn, 25)
-    Stroke(ToggleBtn, C.ACCENT, 2)
+    ToggleBtn.Text = "â—"
+    ToggleBtn.TextColor3 = C.TEXT_1
+    ToggleBtn.TextSize = 17
+    ToggleBtn.AutoButtonColor = false
+    ToggleBtn.ZIndex = 30
+
+    Corner(ToggleBtn, 23)
+    Stroke(ToggleBtn, C.BORDER, 1)
+    AddPressAnimation(ToggleBtn)
+
+    MakeDraggable(ToggleBtn, ToggleBtn)
 
     local isUiOpen = true
+
     ToggleBtn.MouseButton1Click:Connect(function()
         isUiOpen = not isUiOpen
-        Root.Visible = isUiOpen
+
+        if isUiOpen then
+            Root.Visible = true
+            RootScale.Scale = 0.88
+
+            Tween(RootScale, T_SMOOTH, {
+                Scale = 1
+            })
+        else
+            Tween(RootScale, T_MED, {
+                Scale = 0.88
+            })
+
+            task.delay(0.2, function()
+                if not isUiOpen then
+                    Root.Visible = false
+                end
+            end)
+        end
     end)
 
-    local MinBtn = Instance.new("TextButton", Header)
+    local MinBtn = Instance.new("TextButton")
+
+    MinBtn.Parent = Header
     MinBtn.Size = UDim2.new(0, 24, 0, 24)
-    MinBtn.Position = UDim2.new(1, -30, 0.5, -12)
-    MinBtn.BackgroundColor3 = C.SURFACE; MinBtn.BorderSizePixel = 0
-    MinBtn.Text = "—"; MinBtn.TextColor3 = C.TEXT_2
-    MinBtn.Font = Enum.Font.GothamBold; MinBtn.TextSize = 14
-    MinBtn.AutoButtonColor = false; Corner(MinBtn, 4)
+    MinBtn.Position = UDim2.new(1, -31, 0.5, -12)
+    MinBtn.BackgroundColor3 = C.ELEVATED
+    MinBtn.Text = "â€”"
+    MinBtn.TextColor3 = C.TEXT_2
+    MinBtn.Font = Enum.Font.GothamBold
+    MinBtn.TextSize = 13
+    MinBtn.AutoButtonColor = false
+    MinBtn.ZIndex = 8
+
+    Corner(MinBtn, 5)
+    AddPressAnimation(MinBtn)
 
     MinBtn.MouseButton1Click:Connect(function()
         isUiOpen = false
-        Root.Visible = false
+
+        Tween(RootScale, T_MED, {
+            Scale = 0.88
+        })
+
+        task.delay(0.2, function()
+            if not isUiOpen then
+                Root.Visible = false
+            end
+        end)
     end)
 
-    local NavFrame = Instance.new("Frame", Win)
+    local NavFrame = Instance.new("Frame")
+
+    NavFrame.Parent = Win
     NavFrame.Size = UDim2.new(0, 90, 1, -42)
     NavFrame.Position = UDim2.new(0, 0, 0, 42)
     NavFrame.BackgroundColor3 = C.SURFACE
     NavFrame.BorderSizePixel = 0
+    NavFrame.ZIndex = 5
 
-    local NavLayout = Instance.new("UIListLayout", NavFrame)
+    local NavLayout = Instance.new("UIListLayout")
+
+    NavLayout.Parent = NavFrame
     NavLayout.Padding = UDim.new(0, 4)
     NavLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-    local NavPad = Instance.new("UIPadding", NavFrame)
+    local NavPad = Instance.new("UIPadding")
+
+    NavPad.Parent = NavFrame
     NavPad.PaddingTop = UDim.new(0, 8)
     NavPad.PaddingLeft = UDim.new(0, 6)
     NavPad.PaddingRight = UDim.new(0, 6)
 
-    local PagesFrame = Instance.new("Frame", Win)
+    local PagesFrame = Instance.new("Frame")
+
+    PagesFrame.Parent = Win
     PagesFrame.Size = UDim2.new(1, -90, 1, -42)
     PagesFrame.Position = UDim2.new(0, 90, 0, 42)
     PagesFrame.BackgroundTransparency = 1
+    PagesFrame.ZIndex = 4
+    PagesFrame.ClipsDescendants = true
 
     local modules = {}
+    local currentModule = nil
+
     local function CreateModule(name)
-        local TabBtn = Instance.new("TextButton", NavFrame)
+        local TabBtn = Instance.new("TextButton")
+
+        TabBtn.Parent = NavFrame
         TabBtn.Size = UDim2.new(1, 0, 0, 32)
         TabBtn.BackgroundColor3 = C.ELEVATED
         TabBtn.Text = name
         TabBtn.TextColor3 = C.TEXT_2
         TabBtn.Font = Enum.Font.GothamBold
-        TabBtn.TextSize = 11
-        Corner(TabBtn, 4)
+        TabBtn.TextSize = 10
+        TabBtn.AutoButtonColor = false
+        TabBtn.ZIndex = 6
 
-        local Page = Instance.new("ScrollingFrame", PagesFrame)
-        Page.Size = UDim2.new(1, 0, 1, 0)
+        Corner(TabBtn, 5)
+
+        local tabScale = Instance.new("UIScale")
+        tabScale.Parent = TabBtn
+
+        TabBtn.MouseButton1Down:Connect(function()
+            Tween(tabScale, T_FAST, {
+                Scale = 0.96
+            })
+        end)
+
+        TabBtn.MouseButton1Up:Connect(function()
+            Tween(tabScale, T_FAST, {
+                Scale = 1
+            })
+        end)
+
+        local Page = Instance.new("ScrollingFrame")
+
+        Page.Parent = PagesFrame
+        Page.Size = UDim2.fromScale(1, 1)
+        Page.Position = UDim2.new(0, 8, 0, 0)
         Page.BackgroundTransparency = 1
         Page.BorderSizePixel = 0
-        Page.ScrollBarThickness = 3
-        Page.ScrollBarImageColor3 = C.ACCENT
+        Page.ScrollBarThickness = 2
+        Page.ScrollBarImageColor3 = C.ACCENT_D
         Page.Visible = false
+        Page.ZIndex = 5
 
-        local Layout = Instance.new("UIListLayout", Page)
+        local Layout = Instance.new("UIListLayout")
+
+        Layout.Parent = Page
         Layout.Padding = UDim.new(0, 8)
         Layout.SortOrder = Enum.SortOrder.LayoutOrder
 
-        local Pad = Instance.new("UIPadding", Page)
-        Pad.PaddingTop = UDim.new(0, 10); Pad.PaddingBottom = UDim.new(0, 10)
-        Pad.PaddingLeft = UDim.new(0, 10); Pad.PaddingRight = UDim.new(0, 10)
+        local Pad = Instance.new("UIPadding")
 
-        Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            Page.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 20)
+        Pad.Parent = Page
+        Pad.PaddingTop = UDim.new(0, 10)
+        Pad.PaddingBottom = UDim.new(0, 10)
+        Pad.PaddingLeft = UDim.new(0, 10)
+        Pad.PaddingRight = UDim.new(0, 10)
+
+        Layout:GetPropertyChangedSignal(
+            "AbsoluteContentSize"
+        ):Connect(function()
+            Page.CanvasSize =
+                UDim2.new(
+                    0,
+                    0,
+                    0,
+                    Layout.AbsoluteContentSize.Y + 20
+                )
         end)
+
+        local data = {
+            Page = Page,
+            Btn = TabBtn,
+            Scale = tabScale
+        }
+
+        modules[name] = data
 
         TabBtn.MouseButton1Click:Connect(function()
-            for _, m in pairs(modules) do
-                m.Page.Visible = false
-                m.Btn.BackgroundColor3 = C.ELEVATED
-                m.Btn.TextColor3 = C.TEXT_2
+            if currentModule == name then
+                return
             end
+
+            currentModule = name
+
+            for _, m in pairs(modules) do
+                if m ~= data then
+                    m.Page.Visible = false
+
+                    Tween(m.Btn, T_MED, {
+                        BackgroundColor3 = C.ELEVATED,
+                        TextColor3 = C.TEXT_2
+                    })
+
+                    Tween(m.Scale, T_FAST, {
+                        Scale = 1
+                    })
+                end
+            end
+
             Page.Visible = true
-            TabBtn.BackgroundColor3 = C.ACCENT
-            TabBtn.TextColor3 = C.TEXT_1
+            Page.Position = UDim2.new(0, 12, 0, 0)
+
+            Tween(Page, T_MED, {
+                Position = UDim2.new(0, 0, 0, 0)
+            })
+
+            Tween(TabBtn, T_MED, {
+                BackgroundColor3 = C.ACCENT,
+                TextColor3 = Color3.fromRGB(10, 10, 12)
+            })
         end)
 
-        local modData = {Page = Page, Btn = TabBtn}
-        modules[name] = modData
         return Page
     end
 
-    local DupePage     = CreateModule("Dupe")
-    local FarmPage     = CreateModule("Farm")
+    local DupePage = CreateModule("Dupe")
+    local FarmPage = CreateModule("Farm")
     local MovementPage = CreateModule("Movement")
-    local ESPPage      = CreateModule("ESP")
-    local BoulderPage  = CreateModule("Boulder")
+    local ESPPage = CreateModule("ESP")
+    local BoulderPage = CreateModule("Boulder")
 
-    modules["Dupe"].Page.Visible = true
-    modules["Dupe"].Btn.BackgroundColor3 = C.ACCENT
-    modules["Dupe"].Btn.TextColor3 = C.TEXT_1
+    currentModule = "Dupe"
+
+    modules.Dupe.Page.Visible = true
+    modules.Dupe.Page.Position = UDim2.new(0, 0, 0, 0)
+
+    modules.Dupe.Btn.BackgroundColor3 = C.ACCENT
+    modules.Dupe.Btn.TextColor3 =
+        Color3.fromRGB(10, 10, 12)
 
     local function isCrystalTool(child)
-        if not child:IsA("Tool") then return false end
+        if not child:IsA("Tool") then
+            return false
+        end
+
         return child:GetAttribute("CrystalName") ~= nil
             or child:GetAttribute("Tier") ~= nil
             or child.Name:find("Crystal") ~= nil
     end
 
     local function isRuneTool(child)
-        if not child:IsA("Tool") then return false end
+        if not child:IsA("Tool") then
+            return false
+        end
+
         return child:GetAttribute("RuneId") ~= nil
             or child:GetAttribute("RuneName") ~= nil
             or child:GetAttribute("IsRune") == true
@@ -666,22 +1572,30 @@ function loadMainScript()
     end
 
     local crystalOptions = {}
-    local runeOptions    = {}
-    local crystalSetOpts, runeSetOpts
-    local getCrystalSelected, getRuneSelected
+    local runeOptions = {}
+
+    local crystalSetOpts
+    local runeSetOpts
+
+    local getCrystalSelected
+    local getRuneSelected
 
     local function scanInventory()
         table.clear(crystalOptions)
         table.clear(runeOptions)
+
         table.insert(runeOptions, "ALL RUNES")
-        
-        local cMap, rMap = {}, {}
+
+        local cMap = {}
+        local rMap = {}
+
         local function check(child)
             if isRuneTool(child) then
                 if not rMap[child.Name] then
                     rMap[child.Name] = true
                     table.insert(runeOptions, child.Name)
                 end
+
             elseif isCrystalTool(child) then
                 if not cMap[child.Name] then
                     cMap[child.Name] = true
@@ -689,44 +1603,84 @@ function loadMainScript()
                 end
             end
         end
+
         local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-        if bp then for _, c in ipairs(bp:GetChildren()) do check(c) end end
+
+        if bp then
+            for _, child in ipairs(bp:GetChildren()) do
+                check(child)
+            end
+        end
+
         local char = LocalPlayer.Character
-        if char then for _, c in ipairs(char:GetChildren()) do check(c) end end
-        table.sort(crystalOptions); table.sort(runeOptions)
+
+        if char then
+            for _, child in ipairs(char:GetChildren()) do
+                check(child)
+            end
+        end
+
+        table.sort(crystalOptions)
+        table.sort(runeOptions)
     end
 
     scanInventory()
 
-    local dropRemoteCache = nil
+    local dropRemoteCache
+
     local function getDropRemote()
-        if dropRemoteCache and dropRemoteCache.Parent then return dropRemoteCache end
-        local r = S.ReplicatedStorage:FindFirstChild("Remotes")
-        dropRemoteCache = r and r:FindFirstChild("CrystalDropRequest")
+        if dropRemoteCache and dropRemoteCache.Parent then
+            return dropRemoteCache
+        end
+
+        local remotes =
+            S.ReplicatedStorage:FindFirstChild("Remotes")
+
+        dropRemoteCache =
+            remotes
+            and remotes:FindFirstChild("CrystalDropRequest")
+
         return dropRemoteCache
     end
 
-    local function executeDropAll(instant)
+    local function executeDropAll()
         local remote = getDropRemote()
-        if not remote then return end
 
-        local selCrystals = getCrystalSelected and getCrystalSelected() or {}
-        local selRunes    = getRuneSelected    and getRuneSelected()    or {}
+        if not remote then
+            return
+        end
 
-        if #selCrystals == 0 and #selRunes == 0 then return end
+        local selCrystals =
+            getCrystalSelected
+            and getCrystalSelected()
+            or {}
+
+        local selRunes =
+            getRuneSelected
+            and getRuneSelected()
+            or {}
+
+        if #selCrystals == 0 and #selRunes == 0 then
+            return
+        end
 
         local dropAllRunes = false
         local targetSet = {}
-        for _, name in ipairs(selCrystals) do targetSet[name] = true end
-        for _, name in ipairs(selRunes) do 
+
+        for _, name in ipairs(selCrystals) do
+            targetSet[name] = true
+        end
+
+        for _, name in ipairs(selRunes) do
             if name == "ALL RUNES" then
                 dropAllRunes = true
             else
-                targetSet[name] = true 
+                targetSet[name] = true
             end
         end
 
         local itemsToDrop = {}
+
         local containers = {
             LocalPlayer:FindFirstChildOfClass("Backpack"),
             LocalPlayer.Character
@@ -736,8 +1690,16 @@ function loadMainScript()
             if container then
                 for _, child in ipairs(container:GetChildren()) do
                     if child:IsA("Tool") then
-                        if targetSet[child.Name] or (dropAllRunes and isRuneTool(child)) then
-                            table.insert(itemsToDrop, child.Name)
+                        if targetSet[child.Name]
+                            or (
+                                dropAllRunes
+                                and isRuneTool(child)
+                            ) then
+
+                            table.insert(
+                                itemsToDrop,
+                                child.Name
+                            )
                         end
                     end
                 end
@@ -745,312 +1707,650 @@ function loadMainScript()
         end
 
         for _, itemName in ipairs(itemsToDrop) do
-            pcall(function() remote:FireServer(itemName) end)
+            pcall(function()
+                remote:FireServer(itemName)
+            end)
         end
     end
 
     CreateSection(DupePage, "Drop Selection")
 
-    local _, cSetOpts, cGetSel = CreateDropdown(
-        DupePage, "Crystals to Drop", crystalOptions, true,
-        function() end
-    )
-    crystalSetOpts     = cSetOpts
+    local _, cSetOpts, cGetSel =
+        CreateDropdown(
+            DupePage,
+            "Crystals to Drop",
+            crystalOptions,
+            true,
+            function() end
+        )
+
+    crystalSetOpts = cSetOpts
     getCrystalSelected = cGetSel
 
-    local _, rSetOpts, rGetSel = CreateDropdown(
-        DupePage, "Runes to Drop", runeOptions, true,
-        function() end
-    )
-    runeSetOpts     = rSetOpts
+    local _, rSetOpts, rGetSel =
+        CreateDropdown(
+            DupePage,
+            "Runes to Drop",
+            runeOptions,
+            true,
+            function() end
+        )
+
+    runeSetOpts = rSetOpts
     getRuneSelected = rGetSel
 
-    local RefreshBtn = CreateButton(DupePage, "🔄 Refresh Inventory")
+    local RefreshBtn =
+        CreateButton(
+            DupePage,
+            "Refresh Inventory"
+        )
+
     RefreshBtn.MouseButton1Click:Connect(function()
         scanInventory()
-        if crystalSetOpts then crystalSetOpts(crystalOptions) end
-        if runeSetOpts    then runeSetOpts(runeOptions)    end
+
+        if crystalSetOpts then
+            crystalSetOpts(crystalOptions)
+        end
+
+        if runeSetOpts then
+            runeSetOpts(runeOptions)
+        end
     end)
 
     CreateSection(DupePage, "Actions")
 
-    local DropAllBtn = CreateButton(DupePage, "🗑️ Drop All Selection")
+    local DropAllBtn =
+        CreateButton(
+            DupePage,
+            "Drop All Selection"
+        )
+
     DropAllBtn.MouseButton1Click:Connect(function()
-        task.spawn(function() executeDropAll(false) end)
+        task.spawn(executeDropAll)
     end)
 
-    local ResetCharBtn = CreateButton(DupePage, "⟳ Reset Character")
+    local ResetCharBtn =
+        CreateButton(
+            DupePage,
+            "Reset Character"
+        )
+
     ResetCharBtn.MouseButton1Click:Connect(function()
         local char = LocalPlayer.Character
-        local hum  = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then pcall(function() hum.Health = 0 end) end
-    end)
+        local hum =
+            char and char:FindFirstChildOfClass("Humanoid")
 
-    local TimerDupeBtn = CreateButton(DupePage, "⏱️ Start Timer & Dupe")
-    local isCountingDown = false
-    local dropRepeatAmount = 5
-
-    CreateInput(DupePage, "Dupe Multiplier (Amount)", "5", function(txt)
-        local n = tonumber(txt)
-        if n and n > 0 then
-            dropRepeatAmount = math.clamp(math.floor(n), 1, 100)
-        else
-            dropRepeatAmount = 5
+        if hum then
+            pcall(function()
+                hum.Health = 0
+            end)
         end
     end)
 
+    local TimerDupeBtn =
+        CreateButton(
+            DupePage,
+            "Start Timer & Dupe"
+        )
+
+    local isCountingDown = false
+    local dropRepeatAmount = 5
+
+    CreateInput(
+        DupePage,
+        "Dupe Multiplier",
+        "5",
+        function(txt)
+            local n = tonumber(txt)
+
+            if n and n > 0 then
+                dropRepeatAmount =
+                    math.clamp(
+                        math.floor(n),
+                        1,
+                        100
+                    )
+            else
+                dropRepeatAmount = 5
+            end
+        end
+    )
+
     TimerDupeBtn.MouseButton1Click:Connect(function()
-        if isCountingDown then return end
+        if isCountingDown then
+            return
+        end
+
         isCountingDown = true
 
         task.spawn(function()
-            local txtLabel = TimerDupeBtn:FindFirstChild("BtnText")
-            local duration = 5.00
+            local txtLabel =
+                TimerDupeBtn:FindFirstChild("BtnText")
+
+            local duration = 5
             local startTime = os.clock()
-            local endTime = startTime + duration
+            local endTime =
+                startTime + duration
 
             while true do
-                local now = os.clock()
-                local remaining = math.max(0, endTime - now)
+                local remaining =
+                    math.max(
+                        0,
+                        endTime - os.clock()
+                    )
 
                 if txtLabel then
-                    local seconds = math.floor(remaining)
-                    local millis = math.floor((remaining - seconds) * 100)
-                    txtLabel.Text = string.format("[NULLTIME] 00:%02d.%02d", seconds, millis)
+                    local seconds =
+                        math.floor(remaining)
+
+                    local millis =
+                        math.floor(
+                            (remaining - seconds) * 100
+                        )
+
+                    txtLabel.Text =
+                        string.format(
+                            "NULLTIME  00:%02d.%02d",
+                            seconds,
+                            millis
+                        )
                 end
 
-                if remaining <= 0 then break end
+                if remaining <= 0 then
+                    break
+                end
+
                 task.wait(0.02)
             end
 
             if txtLabel then
-                txtLabel.Text = "[NULLTIME] Executing " .. dropRepeatAmount .. "x Dupe..."
+                txtLabel.Text =
+                    "Executing "
+                    .. tostring(dropRepeatAmount)
+                    .. "x..."
             end
 
             for i = 1, dropRepeatAmount do
-                task.spawn(function() executeDropAll(true) end)
-                if i % 5 == 0 then task.wait() end
+                task.spawn(executeDropAll)
+
+                if i % 5 == 0 then
+                    task.wait()
+                end
             end
 
             task.wait(0.15)
-            local char = LocalPlayer.Character
-            local hum  = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then pcall(function() hum.Health = 0 end) end
 
-            task.wait(1.0)
+            local char = LocalPlayer.Character
+            local hum =
+                char
+                and char:FindFirstChildOfClass("Humanoid")
+
+            if hum then
+                pcall(function()
+                    hum.Health = 0
+                end)
+            end
+
+            task.wait(1)
+
             isCountingDown = false
-            if txtLabel then txtLabel.Text = "⏱️ Start Timer & Dupe" end
+
+            if txtLabel then
+                txtLabel.Text =
+                    "Start Timer & Dupe"
+            end
         end)
     end)
 
     CreateSection(FarmPage, "AFK Protection")
 
-    local AntiAfkBtn = CreateButton(FarmPage, "🛡️ Toggle Anti-AFK")
-    local antiAfkActive = false
-    local afkConn = nil
+    local AntiAfkBtn, setAntiAfk =
+        CreateToggle(
+            FarmPage,
+            "Anti-AFK",
+            false,
+            function(active)
+                local afkConn =
+                    env.__NullTimeAfkConnection
 
-    AntiAfkBtn.MouseButton1Click:Connect(function()
-        antiAfkActive = not antiAfkActive
-        local txt = AntiAfkBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = antiAfkActive and "🛡️ Anti-AFK: ACTIVE" or "🛡️ Toggle Anti-AFK" end
+                if active then
+                    if afkConn then
+                        afkConn:Disconnect()
+                    end
 
-        if antiAfkActive then
-            afkConn = LocalPlayer.Idled:Connect(function()
-                if antiAfkActive then
-                    S.VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                    task.wait(1)
-                    S.VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                    afkConn =
+                        LocalPlayer.Idled:Connect(
+                            function()
+                                if not env.__NullTimeActive then
+                                    return
+                                end
+
+                                pcall(function()
+                                    S.VirtualUser:Button2Down(
+                                        Vector2.new(0, 0),
+                                        workspace.CurrentCamera.CFrame
+                                    )
+
+                                    task.wait(1)
+
+                                    S.VirtualUser:Button2Up(
+                                        Vector2.new(0, 0),
+                                        workspace.CurrentCamera.CFrame
+                                    )
+                                end)
+                            end
+                        )
+
+                    env.__NullTimeAfkConnection =
+                        afkConn
+                else
+                    if afkConn then
+                        afkConn:Disconnect()
+                    end
+
+                    env.__NullTimeAfkConnection = nil
                 end
-            end)
-        else
-            if afkConn then afkConn:Disconnect() end
-        end
-    end)
+            end
+        )
 
-    CreateSection(FarmPage, "Auto-Farm Options")
+    CreateSection(
+        FarmPage,
+        "Auto-Farm Options"
+    )
 
-    local AutoToolBtn = CreateButton(FarmPage, "⚔️ Auto-Swing Tool")
-    local autoToolActive = false
+    local AutoToolBtn =
+        CreateToggle(
+            FarmPage,
+            "Auto-Swing Tool",
+            false,
+            function(active)
+                env.__NullTimeAutoSwing =
+                    active
 
-    AutoToolBtn.MouseButton1Click:Connect(function()
-        autoToolActive = not autoToolActive
-        local txt = AutoToolBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = autoToolActive and "⚔️ Auto-Swing: ACTIVE" or "⚔️ Auto-Swing Tool" end
+                if active then
+                    task.spawn(function()
+                        while env.__NullTimeAutoSwing
+                            and env.__NullTimeActive do
 
-        if autoToolActive then
-            task.spawn(function()
-                while autoToolActive do
-                    local char = LocalPlayer.Character
-                    local tool = char and char:FindFirstChildOfClass("Tool")
-                    if tool then tool:Activate() end
-                    task.wait(0.1)
+                            local char =
+                                LocalPlayer.Character
+
+                            local tool =
+                                char
+                                and char:FindFirstChildOfClass(
+                                    "Tool"
+                                )
+
+                            if tool then
+                                pcall(function()
+                                    tool:Activate()
+                                end)
+                            end
+
+                            task.wait(0.1)
+                        end
+                    end)
                 end
-            end)
-        end
-    end)
-
-    CreateSection(MovementPage, "Player Speed & Jump")
-
-    local SpeedBtn = CreateButton(MovementPage, "⚡ Speed Boost (60)")
-    local speedEnabled = false
-    SpeedBtn.MouseButton1Click:Connect(function()
-        speedEnabled = not speedEnabled
-        local txt = SpeedBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = speedEnabled and "⚡ Speed Boost: ACTIVE (60)" or "⚡ Speed Boost (60)" end
-    end)
-
-    S.RunService.Stepped:Connect(function()
-        if speedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-            LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 60
-        end
-    end)
-
-    local JumpBtn = CreateButton(MovementPage, "🦘 Toggle High Jump (100)")
-    local jumpEnabled = false
-    JumpBtn.MouseButton1Click:Connect(function()
-        jumpEnabled = not jumpEnabled
-        local txt = JumpBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = jumpEnabled and "🦘 Jump: ACTIVE (100)" or "🦘 Toggle High Jump (100)" end
-    end)
-
-    S.RunService.Stepped:Connect(function()
-        if jumpEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-            LocalPlayer.Character:FindFirstChildOfClass("Humanoid").JumpPower = 100
-        end
-    end)
-
-    CreateSection(MovementPage, "Interactions & Collision")
-
-    local InstaPickBtn = CreateButton(MovementPage, "⚡ Toggle Insta Pick Up")
-    local instaPickEnabled = false
-    local promptConn = nil
-
-    InstaPickBtn.MouseButton1Click:Connect(function()
-        instaPickEnabled = not instaPickEnabled
-        local txt = InstaPickBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = instaPickEnabled and "⚡ Insta Pick Up: ACTIVE" or "⚡ Toggle Insta Pick Up" end
-
-        if instaPickEnabled then
-            for _, prompt in ipairs(S.Workspace:GetDescendants()) do
-                if prompt:IsA("ProximityPrompt") then prompt.HoldDuration = 0 end
             end
-            promptConn = S.ProximityPromptService.PromptShown:Connect(function(prompt)
-                if instaPickEnabled then prompt.HoldDuration = 0 end
-            end)
-        else
-            if promptConn then promptConn:Disconnect() end
+        )
+
+    CreateSection(
+        MovementPage,
+        "Player Speed & Jump"
+    )
+
+    local SpeedBtn =
+        CreateToggle(
+            MovementPage,
+            "Speed Boost (60)",
+            false,
+            function(active)
+                env.__NullTimeSpeed =
+                    active
+            end
+        )
+
+    S.RunService.Stepped:Connect(function()
+        if not env.__NullTimeSpeed then
+            return
+        end
+
+        local char = LocalPlayer.Character
+        local hum =
+            char
+            and char:FindFirstChildOfClass("Humanoid")
+
+        if hum then
+            hum.WalkSpeed = 60
         end
     end)
 
-    local NoclipBtn = CreateButton(MovementPage, "👻 Toggle Noclip")
-    local noclipEnabled = false
-    NoclipBtn.MouseButton1Click:Connect(function()
-        noclipEnabled = not noclipEnabled
-        local txt = NoclipBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = noclipEnabled and "👻 Noclip: ACTIVE" or "👻 Toggle Noclip" end
-    end)
+    local JumpBtn =
+        CreateToggle(
+            MovementPage,
+            "High Jump (100)",
+            false,
+            function(active)
+                env.__NullTimeJump =
+                    active
+            end
+        )
 
     S.RunService.Stepped:Connect(function()
-        if noclipEnabled and LocalPlayer.Character then
-            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
+        if not env.__NullTimeJump then
+            return
+        end
+
+        local char = LocalPlayer.Character
+        local hum =
+            char
+            and char:FindFirstChildOfClass("Humanoid")
+
+        if hum then
+            hum.JumpPower = 100
+        end
+    end)
+
+    CreateSection(
+        MovementPage,
+        "Interactions & Collision"
+    )
+
+    local InstaPickBtn =
+        CreateToggle(
+            MovementPage,
+            "Insta Pick Up",
+            false,
+            function(active)
+                env.__NullTimeInstaPick =
+                    active
+
+                local promptConn =
+                    env.__NullTimePromptConnection
+
+                if active then
+                    for _, prompt in ipairs(
+                        S.Workspace:GetDescendants()
+                    ) do
+                        if prompt:IsA("ProximityPrompt") then
+                            prompt.HoldDuration = 0
+                        end
+                    end
+
+                    if promptConn then
+                        promptConn:Disconnect()
+                    end
+
+                    promptConn =
+                        S.ProximityPromptService.PromptShown:Connect(
+                            function(prompt)
+                                if env.__NullTimeInstaPick then
+                                    prompt.HoldDuration = 0
+                                end
+                            end
+                        )
+
+                    env.__NullTimePromptConnection =
+                        promptConn
+                else
+                    if promptConn then
+                        promptConn:Disconnect()
+                    end
+
+                    env.__NullTimePromptConnection = nil
+                end
+            end
+        )
+
+    local NoclipBtn =
+        CreateToggle(
+            MovementPage,
+            "Noclip",
+            false,
+            function(active)
+                env.__NullTimeNoclip =
+                    active
+            end
+        )
+
+    S.RunService.Stepped:Connect(function()
+        if not env.__NullTimeNoclip then
+            return
+        end
+
+        local char = LocalPlayer.Character
+
+        if char then
+            for _, part in ipairs(
+                char:GetDescendants()
+            ) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
             end
         end
     end)
 
-    CreateSection(ESPPage, "Player Visuals")
+    CreateSection(
+        ESPPage,
+        "Player Visuals"
+    )
 
-    local EspBtn = CreateButton(ESPPage, "👁️ Toggle Player ESP")
     local espEnabled = false
+    local espConnections = {}
 
     local function applyEsp(player)
-        if player == LocalPlayer then return end
+        if player == LocalPlayer then
+            return
+        end
+
         local function highlightChar(char)
-            if not char then return end
+            if not espEnabled or not char then
+                return
+            end
+
             if not char:FindFirstChild("RedESP") then
                 local hl = Instance.new("Highlight")
+
                 hl.Name = "RedESP"
-                hl.FillColor = Color3.fromRGB(255, 0, 0)
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                hl.FillTransparency = 0.5
-                hl.OutlineTransparency = 0
+                hl.FillColor =
+                    Color3.fromRGB(
+                        225,
+                        225,
+                        230
+                    )
+
+                hl.OutlineColor =
+                    Color3.fromRGB(
+                        255,
+                        255,
+                        255
+                    )
+
+                hl.FillTransparency = 0.72
+                hl.OutlineTransparency = 0.15
                 hl.Parent = char
             end
         end
-        if player.Character then highlightChar(player.Character) end
-        player.CharacterAdded:Connect(highlightChar)
+
+        if player.Character then
+            highlightChar(player.Character)
+        end
+
+        if not espConnections[player] then
+            espConnections[player] =
+                player.CharacterAdded:Connect(
+                    highlightChar
+                )
+        end
     end
 
     local function removeEsp()
-        for _, p in ipairs(S.Players:GetPlayers()) do
-            if p.Character and p.Character:FindFirstChild("RedESP") then
-                p.Character.RedESP:Destroy()
+        for _, p in ipairs(
+            S.Players:GetPlayers()
+        ) do
+            if p.Character then
+                local esp =
+                    p.Character:FindFirstChild(
+                        "RedESP"
+                    )
+
+                if esp then
+                    esp:Destroy()
+                end
             end
         end
     end
 
-    EspBtn.MouseButton1Click:Connect(function()
-        espEnabled = not espEnabled
-        local txt = EspBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = espEnabled and "👁️ Player ESP: ACTIVE" or "👁️ Toggle Player ESP" end
+    local EspBtn =
+        CreateToggle(
+            ESPPage,
+            "Player ESP",
+            false,
+            function(active)
+                espEnabled = active
 
+                if espEnabled then
+                    for _, p in ipairs(
+                        S.Players:GetPlayers()
+                    ) do
+                        applyEsp(p)
+                    end
+                else
+                    removeEsp()
+                end
+            end
+        )
+
+    S.Players.PlayerAdded:Connect(function(player)
         if espEnabled then
-            for _, p in ipairs(S.Players:GetPlayers()) do applyEsp(p) end
-            S.Players.PlayerAdded:Connect(applyEsp)
-        else
-            removeEsp()
+            applyEsp(player)
         end
     end)
 
-    local ExactBoulders = { "Mossite", "Voltite", "Gildrite", "Rimeveil", "Nocturnite" }
+    local ExactBoulders = {
+        "Mossite",
+        "Voltite",
+        "Gildrite",
+        "Rimeveil",
+        "Nocturnite"
+    }
+
     local boulderList = {}
-    local setBoulderOpts, getSelectedBoulders
+
+    local setBoulderOpts
+    local getSelectedBoulders
 
     local function cleanExactBoulderName(rawName)
-        for _, bType in ipairs(ExactBoulders) do
-            if rawName:lower():find(bType:lower()) then return bType end
+        for _, bType in ipairs(
+            ExactBoulders
+        ) do
+            if rawName:lower():find(
+                bType:lower()
+            ) then
+                return bType
+            end
         end
+
         return nil
     end
 
     local function scanExactBoulders()
         table.clear(boulderList)
-        for _, obj in ipairs(S.Workspace:GetDescendants()) do
-            local exactName = cleanExactBoulderName(obj.Name)
-            if exactName then table.insert(boulderList, { Instance = obj, Type = exactName }) end
+
+        for _, obj in ipairs(
+            S.Workspace:GetDescendants()
+        ) do
+            local exactName =
+                cleanExactBoulderName(
+                    obj.Name
+                )
+
+            if exactName then
+                table.insert(
+                    boulderList,
+                    {
+                        Instance = obj,
+                        Type = exactName
+                    }
+                )
+            end
         end
     end
 
     scanExactBoulders()
 
-    CreateSection(BoulderPage, "Boulder Selection")
-
-    local _, bSetOpts, bGetSel = CreateDropdown(
-        BoulderPage, "Target Boulders", ExactBoulders, true,
-        function() end
+    CreateSection(
+        BoulderPage,
+        "Boulder Selection"
     )
-    setBoulderOpts      = bSetOpts
+
+    local _, bSetOpts, bGetSel =
+        CreateDropdown(
+            BoulderPage,
+            "Target Boulders",
+            ExactBoulders,
+            true,
+            function() end
+        )
+
+    setBoulderOpts = bSetOpts
     getSelectedBoulders = bGetSel
 
-    local ScanBouldersBtn = CreateButton(BoulderPage, "🔍 Exact Map Scan")
-    ScanBouldersBtn.MouseButton1Click:Connect(scanExactBoulders)
+    local ScanBouldersBtn =
+        CreateButton(
+            BoulderPage,
+            "Exact Map Scan"
+        )
 
-    CreateSection(BoulderPage, "Boulder ESP & Auto-Farm")
+    ScanBouldersBtn.MouseButton1Click:Connect(function()
+        scanExactBoulders()
 
-    local BoulderEspBtn = CreateButton(BoulderPage, "🪨 Toggle Boulder ESP")
+        if setBoulderOpts then
+            setBoulderOpts(ExactBoulders)
+        end
+    end)
+
+    CreateSection(
+        BoulderPage,
+        "Boulder ESP & Auto-Farm"
+    )
+
     local boulderEspActive = false
 
     local function applyBoulderESP()
-        for _, item in ipairs(boulderList) do
+        for _, item in ipairs(
+            boulderList
+        ) do
             local obj = item.Instance
             local bType = item.Type
+
             if obj and obj.Parent then
-                if not obj:FindFirstChild("BoulderESP") then
-                    local hl = Instance.new("Highlight")
+                if not obj:FindFirstChild(
+                    "BoulderESP"
+                ) then
+                    local hl =
+                        Instance.new("Highlight")
+
                     hl.Name = "BoulderESP"
-                    hl.FillColor = BoulderRarityColors[bType] or Color3.fromRGB(255, 255, 255)
-                    hl.OutlineColor = Color3.fromRGB(0, 0, 0)
-                    hl.FillTransparency = 0.4
+
+                    hl.FillColor =
+                        BoulderRarityColors[bType]
+                        or Color3.fromRGB(
+                            255,
+                            255,
+                            255
+                        )
+
+                    hl.OutlineColor =
+                        Color3.fromRGB(
+                            0,
+                            0,
+                            0
+                        )
+
+                    hl.FillTransparency = 0.45
+                    hl.OutlineTransparency = 0.1
                     hl.Parent = obj
                 end
             end
@@ -1058,68 +2358,324 @@ function loadMainScript()
     end
 
     local function removeBoulderESP()
-        for _, item in ipairs(boulderList) do
+        for _, item in ipairs(
+            boulderList
+        ) do
             local obj = item.Instance
-            if obj and obj:FindFirstChild("BoulderESP") then obj.BoulderESP:Destroy() end
+
+            if obj then
+                local esp =
+                    obj:FindFirstChild(
+                        "BoulderESP"
+                    )
+
+                if esp then
+                    esp:Destroy()
+                end
+            end
         end
     end
 
-    BoulderEspBtn.MouseButton1Click:Connect(function()
-        boulderEspActive = not boulderEspActive
-        local txt = BoulderEspBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = boulderEspActive and "🪨 Boulder ESP: ACTIVE" or "🪨 Toggle Boulder ESP" end
+    local BoulderEspBtn =
+        CreateToggle(
+            BoulderPage,
+            "Boulder ESP",
+            false,
+            function(active)
+                boulderEspActive = active
 
-        if boulderEspActive then
-            scanExactBoulders()
-            applyBoulderESP()
-        else
-            removeBoulderESP()
-        end
-    end)
-
-    local AutoFarmBtn = CreateButton(BoulderPage, "⛏️ Toggle Auto-Farm Boulders")
-    local autoFarmActive = false
-
-    AutoFarmBtn.MouseButton1Click:Connect(function()
-        autoFarmActive = not autoFarmActive
-        local txt = AutoFarmBtn:FindFirstChild("BtnText")
-        if txt then txt.Text = autoFarmActive and "⛏️ Auto-Farm: ACTIVE" or "⛏️ Toggle Auto-Farm Boulders" end
-
-        if autoFarmActive then
-            task.spawn(function()
-                while autoFarmActive do
+                if boulderEspActive then
                     scanExactBoulders()
-                    local targets = getSelectedBoulders and getSelectedBoulders() or {}
-                    local targetSet = {}
-                    for _, t in ipairs(targets) do targetSet[t] = true end
+                    applyBoulderESP()
+                else
+                    removeBoulderESP()
+                end
+            end
+        )
 
-                    local closest = nil
-                    local minDistance = math.huge
-                    local char = LocalPlayer.Character
-                    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local AutoFarmBtn =
+        CreateToggle(
+            BoulderPage,
+            "Auto-Farm Boulders",
+            false,
+            function(active)
+                env.__NullTimeBoulderFarm =
+                    active
 
-                    if root then
-                        for _, item in ipairs(boulderList) do
-                            if targetSet[item.Type] and item.Instance and item.Instance.Parent then
-                                local pos = item.Instance:IsA("Model") and item.Instance:GetPivot().Position or item.Instance.Position
-                                local dist = (root.Position - pos).Magnitude
-                                if dist < minDistance then
-                                    minDistance = dist
-                                    closest = item
+                if active then
+                    task.spawn(function()
+                        while env.__NullTimeBoulderFarm
+                            and env.__NullTimeActive do
+
+                            scanExactBoulders()
+
+                            local targets =
+                                getSelectedBoulders
+                                and getSelectedBoulders()
+                                or {}
+
+                            local targetSet = {}
+
+                            for _, t in ipairs(
+                                targets
+                            ) do
+                                targetSet[t] = true
+                            end
+
+                            local closest = nil
+                            local minDistance =
+                                math.huge
+
+                            local char =
+                                LocalPlayer.Character
+
+                            local root =
+                                char
+                                and char:FindFirstChild(
+                                    "HumanoidRootPart"
+                                )
+
+                            if root then
+                                for _, item in ipairs(
+                                    boulderList
+                                ) do
+                                    if targetSet[item.Type]
+                                        and item.Instance
+                                        and item.Instance.Parent then
+
+                                        local pos
+
+                                        if item.Instance:IsA(
+                                            "Model"
+                                        ) then
+                                            pos =
+                                                item.Instance:GetPivot().Position
+                                        elseif item.Instance:IsA(
+                                            "BasePart"
+                                        ) then
+                                            pos =
+                                                item.Instance.Position
+                                        end
+
+                                        if pos then
+                                            local dist =
+                                                (
+                                                    root.Position
+                                                    - pos
+                                                ).Magnitude
+
+                                            if dist < minDistance then
+                                                minDistance =
+                                                    dist
+
+                                                closest =
+                                                    item
+                                            end
+                                        end
+                                    end
+                                end
+
+                                if closest
+                                    and closest.Instance then
+
+                                    local pos
+
+                                    if closest.Instance:IsA(
+                                        "Model"
+                                    ) then
+                                        pos =
+                                            closest.Instance:GetPivot().Position
+                                    elseif closest.Instance:IsA(
+                                        "BasePart"
+                                    ) then
+                                        pos =
+                                            closest.Instance.Position
+                                    end
+
+                                    if pos then
+                                        root.CFrame =
+                                            CFrame.new(
+                                                pos
+                                                + Vector3.new(
+                                                    0,
+                                                    4,
+                                                    0
+                                                )
+                                            )
+
+                                        local tool =
+                                            char:FindFirstChildOfClass(
+                                                "Tool"
+                                            )
+
+                                        if tool then
+                                            pcall(function()
+                                                tool:Activate()
+                                            end)
+                                        end
+                                    end
                                 end
                             end
-                        end
 
-                        if closest and closest.Instance then
-                            local pos = closest.Instance:IsA("Model") and closest.Instance:GetPivot().Position or closest.Instance.Position
-                            root.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
-                            local tool = char:FindFirstChildOfClass("Tool")
-                            if tool then tool:Activate() end
+                            task.wait(0.5)
+                        end
+                    end)
+                end
+            end
+        )
+
+    Tween(RootScale, T_SMOOTH, {
+        Scale = 1
+    })
+end
+
+local function executeLoginFlow()
+    local robloxUser =
+        LocalPlayer.Name:lower()
+
+    if currentStep == 1 then
+        StatusLabel.Text =
+            "Searching database..."
+
+        StatusLabel.TextColor3 =
+            C.WARNING
+
+        ActionBtn.Active = false
+
+        task.spawn(function()
+            dbCache =
+                fetchRemoteDatabase()
+
+            if not dbCache then
+                promptError(
+                    "Unable to get database."
+                )
+
+                ActionBtn.Active = true
+                return
+            end
+
+            local userFound = false
+
+            for _, record in ipairs(dbCache) do
+                if record.user:lower()
+                    == robloxUser then
+
+                    userFound = true
+                    break
+                end
+            end
+
+            if userFound then
+                validatedUser = robloxUser
+                currentStep = 2
+
+                StatusLabel.Text =
+                    "User found. Enter your key."
+
+                StatusLabel.TextColor3 =
+                    C.SUCCESS
+
+                InputBox.Text = ""
+                InputBox.TextEditable = true
+                InputBox.PlaceholderText = "Key..."
+
+                ActionBtn.Text = "Login"
+                ActionBtn.Active = true
+
+                Tween(InputBox, T_MED, {
+                    BackgroundColor3 = C.ELEVATED
+                })
+
+            else
+                promptError(
+                    "You are not authorized."
+                )
+
+                ActionBtn.Active = true
+            end
+        end)
+
+    elseif currentStep == 2 then
+        local keyInput =
+            InputBox.Text:match(
+                "^%s*(.-)%s*$"
+            )
+
+        if keyInput == "" then
+            return
+        end
+
+        StatusLabel.Text =
+            "Validating key..."
+
+        StatusLabel.TextColor3 =
+            C.WARNING
+
+        ActionBtn.Active = false
+
+        task.spawn(function()
+            local keyValid = false
+
+            if dbCache then
+                for _, record in ipairs(
+                    dbCache
+                ) do
+                    if record.user:lower()
+                        == validatedUser
+                        and record.key
+                        == keyInput then
+
+                        if record.days == 0
+                            or record.days > 0 then
+
+                            keyValid = true
+                            break
                         end
                     end
-                    task.wait(0.5)
                 end
-            end)
-        end
-    end)
+            end
+
+            if keyValid then
+                StatusLabel.Text =
+                    "Access granted."
+
+                StatusLabel.TextColor3 =
+                    C.SUCCESS
+
+                task.wait(0.35)
+
+                Tween(AuthScale, T_SMOOTH, {
+                    Scale = 0.86
+                })
+
+                task.wait(0.28)
+
+                if AuthSG then
+                    AuthSG:Destroy()
+                end
+
+                loadMainScript()
+
+            else
+                promptError(
+                    "Invalid or expired key."
+                )
+
+                ActionBtn.Active = true
+            end
+        end)
+    end
 end
+
+ActionBtn.MouseButton1Click:Connect(
+    executeLoginFlow
+)
+
+InputBox.FocusLost:Connect(function(
+    enterPressed
+)
+    if enterPressed then
+        executeLoginFlow()
+    end
+end)
