@@ -8,8 +8,22 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
-local nulltime = {}
+-- Safe Environment Wrappers for Xeno / Delta
+local gethui = gethui or function() return CoreGui end
+local fireproximityprompt = fireproximityprompt or function(prompt)
+	pcall(function()
+		prompt:InputHoldBegin()
+		task.wait(prompt.HoldDuration or 0)
+		prompt:InputHoldEnd()
+	end)
+end
+local fireclickdetector = fireclickdetector or function(detector)
+	pcall(function()
+		detector:MouseClick()
+	end)
+end
 
+local nulltime = {}
 local afkConns = {}
 local afkRunning = true
 
@@ -17,40 +31,30 @@ do
 	local VirtualUser = game:GetService("VirtualUser")
 
 	local function silenceIdle()
-		local ok, list = pcall(function()
-			return getconnections(LocalPlayer.Idled)
-		end)
-
-		if not ok or type(list) ~= "table" then
-			return
-		end
-
-		for _, connection in ipairs(list) do
-			pcall(function()
-				connection:Disable()
-			end)
+		if typeof(getconnections) == "function" then
+			local ok, list = pcall(getconnections, LocalPlayer.Idled)
+			if ok and type(list) == "table" then
+				for _, connection in ipairs(list) do
+					pcall(function() connection:Disable() end)
+				end
+			end
 		end
 	end
 
 	local function nudge()
 		pcall(function()
 			VirtualUser:CaptureController()
-			VirtualUser:ClickButton2(Vector3.new())
+			VirtualUser:ClickButton2(Vector3.zero)
 		end)
 	end
 
 	silenceIdle()
-
 	afkConns[#afkConns + 1] = LocalPlayer.Idled:Connect(nudge)
 
 	task.spawn(function()
 		while afkRunning do
 			task.wait(60)
-
-			if not afkRunning or not LocalPlayer.Parent then
-				break
-			end
-
+			if not afkRunning or not LocalPlayer.Parent then break end
 			silenceIdle()
 			nudge()
 		end
@@ -58,40 +62,30 @@ do
 end
 
 local function resolveGuiRoot()
-	local ok, hidden = pcall(function()
-		return gethui()
-	end)
+	local ok, hidden = pcall(gethui)
 	if ok and typeof(hidden) == "Instance" then
 		return hidden
 	end
-
 	local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	if playerGui then
-		return playerGui
-	end
-
+	if playerGui then return playerGui end
 	return LocalPlayer:WaitForChild("PlayerGui", 10) or CoreGui
 end
 
 local GuiRoot = resolveGuiRoot()
 
 for _, container in ipairs({ GuiRoot, CoreGui }) do
-	for _, name in ipairs({ "UniverseESPGui", "UniverseCrystalEsp" }) do
+	for _, name in ipairs({ "UniverseESPGui", "UniverseCrystalEsp", "UniverseMountainEsp", "UniversePlayerEsp" }) do
 		pcall(function()
 			local existing = container:FindFirstChild(name)
-			if existing then
-				existing:Destroy()
-			end
+			if existing then existing:Destroy() end
 		end)
 	end
 end
 
 local function findRemote(name)
-	local folder = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes", 10)
-	if not folder then
-		return nil
-	end
-	return folder:FindFirstChild(name) or folder:WaitForChild(name, 5)
+	local folder = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes", 5)
+	if not folder then return nil end
+	return folder:FindFirstChild(name) or folder:WaitForChild(name, 3)
 end
 
 local SellRequest = findRemote("SellRequest")
@@ -101,8 +95,8 @@ local ToggleFavorite = findRemote("ToggleFavorite")
 
 local ESP = {
 	font = Enum.Font.GothamBold,
-	sweep = 0.5,
-	budget = 0.005,
+	sweep = 0.8,
+	budget = 0.003,
 	offset = Vector3.new(0, 3, 0),
 	width = 250,
 	height = 66,
@@ -110,9 +104,7 @@ local ESP = {
 	ttl = 5,
 }
 
-pcall(function()
-	ESP.font = Enum.Font.LuckiestGuy
-end)
+pcall(function() ESP.font = Enum.Font.LuckiestGuy end)
 
 local PLAYER = {
 	offset = Vector3.new(0, -8, 0),
@@ -122,10 +114,8 @@ local PLAYER = {
 }
 
 local PACE = {
-	boost = 35,
-	normal = 16,
-	stats = 0.25,
-	distance = 0.05,
+	stats = 0.4,
+	distance = 0.1,
 }
 
 local TP = {
@@ -151,15 +141,15 @@ local TP = {
 local PICK = {
 	aimRange = 5000,
 	aimDot = 0.995,
-	range = 13,
-	cooldown = 0.04,
+	range = 15,
+	cooldown = 0.06,
 	restore = 0.2,
-	burst = 8,
-	retry = 0.15,
+	burst = 6,
+	retry = 0.2,
 	forget = 5,
 	pad = 4,
-	instantRadius = 60,
-	instantTick = 0.25,
+	instantRadius = 50,
+	instantTick = 0.35,
 }
 
 local COLORS = {
@@ -184,30 +174,13 @@ local LUCK = {
 }
 
 local MUTATION_LUCK = {
-	Verdant = 15,
-	Voltaic = 20,
-	Gilded = 18,
-	Onyx = 28,
-	Terminus = 40,
-	Frost = 1.4,
-	Fire = 1.4,
-	Thunder = 1.5,
-	Starfall = 1.3,
-	Aurora = 2.2,
-	Radioactive = 2,
-	Poison = 1.5,
-	Wet = 1,
+	Verdant = 15, Voltaic = 20, Gilded = 18, Onyx = 28, Terminus = 40,
+	Frost = 1.4, Fire = 1.4, Thunder = 1.5, Starfall = 1.3, Aurora = 2.2,
+	Radioactive = 2, Poison = 1.5, Wet = 1,
 }
 
 local WATCHED_ATTRIBUTES = {
-	"Value",
-	"Collected",
-	"WeightKg",
-	"Tier",
-	"TierName",
-	"CrystalName",
-	"Mutation",
-	"ExtraMutations",
+	"Value", "Collected", "WeightKg", "Tier", "TierName", "CrystalName", "Mutation", "ExtraMutations"
 }
 
 local SUFFIXES = { "", "k", "M", "B", "T", "Qa" }
@@ -223,7 +196,7 @@ Library.ForceCheckbox = false
 Library.ShowToggleFrameInKeybinds = true
 
 local Window = Library:CreateWindow({
-	Title = "Mine a Mountain",
+	Title = "Mine a Mountain [Mobile/Xeno/Delta]",
 	Footer = "Mine a Mountain",
 	AutoShow = true,
 	NotifySide = "Right",
@@ -278,7 +251,6 @@ local instantPromptActive = false
 local instantPatched = {}
 local instantAccumulator = math.huge
 
--- Variables para Nulltime Boost & Fly
 nulltime.SpeedBoostEnabled = false
 nulltime.SpeedValue = 35
 nulltime.FlyEnabled = false
@@ -291,9 +263,7 @@ local flyBodyGyro = nil
 
 local function reportError(context, err)
 	local now = os.clock()
-	if now - lastReport < 5 then
-		return
-	end
+	if now - lastReport < 5 then return end
 	lastReport = now
 	warn(string.format("[Mine a Mountain] %s: %s", context, tostring(err)))
 end
@@ -301,83 +271,52 @@ end
 local function formatShort(n, prefix)
 	n = tonumber(n) or 0
 	prefix = prefix or ""
-
 	local sign = n < 0 and "-" or ""
 	n = math.abs(n)
 
-	if n < 1000 then
-		return string.format("%s%s%d", sign, prefix, math.floor(n + 0.5))
-	end
+	if n < 1000 then return string.format("%s%s%d", sign, prefix, math.floor(n + 0.5)) end
 
 	local index = 0
 	while n >= 1000 and index < #SUFFIXES - 1 do
 		n /= 1000
 		index += 1
 	end
-
 	return string.format("%s%s%.2f%s", sign, prefix, n, SUFFIXES[index + 1])
 end
 
 local function formatWeight(kg)
 	kg = tonumber(kg) or 0
-	if kg >= 1000 then
-		return formatShort(kg) .. "kg"
-	end
+	if kg >= 1000 then return formatShort(kg) .. "kg" end
 	return string.format("%.1fkg", kg)
 end
 
 local function formatDistance(studs)
 	studs = tonumber(studs) or 0
-	if studs >= 1000 then
-		return string.format("%.1fkm", studs / 1000)
-	end
+	if studs >= 1000 then return string.format("%.1fkm", studs / 1000) end
 	return string.format("%dm", math.floor(studs + 0.5))
 end
 
 local function formatLuck(score)
 	local pct = (tonumber(score) or 0) * 100
-
-	if pct <= 0 then
-		return "+0%"
-	end
-	if pct < 1 then
-		return string.format("+%.2f%%", pct)
-	end
-	if pct < 10 then
-		return string.format("+%.1f%%", pct)
-	end
+	if pct <= 0 then return "+0%" end
+	if pct < 1 then return string.format("+%.2f%%", pct) end
+	if pct < 10 then return string.format("+%.1f%%", pct) end
 	return string.format("+%.0f%%", pct)
 end
 
 local function parseValue(text)
-	if type(text) ~= "string" then
-		return nil
-	end
-
+	if type(text) ~= "string" then return nil end
 	local cleaned = text:lower():gsub("[%s,%$_]", "")
-	if cleaned == "" then
-		return 0
-	end
+	if cleaned == "" then return 0 end
 
 	local number, suffix = cleaned:match("^(%d*%.?%d+)(%a*)$")
-	if not number then
-		return nil
-	end
-
+	if not number then return nil end
 	local base = tonumber(number)
-	if not base then
-		return nil
-	end
-
-	if suffix == "" then
-		return base
-	end
+	if not base then return nil end
+	if suffix == "" then return base end
 
 	local multiplier = PARSE_MULTIPLIERS[suffix]
-	if not multiplier then
-		return nil
-	end
-
+	if not multiplier then return nil end
 	return base * multiplier
 end
 
@@ -391,10 +330,9 @@ end
 
 bindCharacter(LocalPlayer.Character)
 
-local characterConn = LocalPlayer.CharacterAdded:Connect(function(character)
+LocalPlayer.CharacterAdded:Connect(function(character)
 	rootPart = nil
 	tpState = nil
-
 	local waiter
 	waiter = character.ChildAdded:Connect(function(child)
 		if child.Name == "HumanoidRootPart" then
@@ -402,71 +340,46 @@ local characterConn = LocalPlayer.CharacterAdded:Connect(function(character)
 			waiter:Disconnect()
 		end
 	end)
-
 	bindCharacter(character)
-	if rootPart then
-		waiter:Disconnect()
-	end
+	if rootPart and waiter then waiter:Disconnect() end
 end)
 
 local function getRoot()
-	if rootPart and rootPart.Parent then
-		return rootPart
-	end
+	if rootPart and rootPart.Parent then return rootPart end
 	bindCharacter(LocalPlayer.Character)
 	return rootPart
 end
 
 local function getAttr(inst, name)
+	if not inst then return nil end
 	local ok, value = pcall(inst.GetAttribute, inst, name)
-	if ok then
-		return value
-	end
-	return nil
+	return ok and value or nil
 end
 
-local function crystalValue(inst)
-	return tonumber(getAttr(inst, "Value")) or 0
-end
-
-local function crystalWeight(inst)
-	return tonumber(getAttr(inst, "WeightKg")) or 0
-end
-
-local function crystalTier(inst)
-	return tonumber(getAttr(inst, "Tier")) or 0
-end
+local function crystalValue(inst) return tonumber(getAttr(inst, "Value")) or 0 end
+local function crystalWeight(inst) return tonumber(getAttr(inst, "WeightKg")) or 0 end
+local function crystalTier(inst) return tonumber(getAttr(inst, "Tier")) or 0 end
 
 local function crystalRarity(inst)
 	local name = getAttr(inst, "TierName")
-	if type(name) == "string" and name ~= "" then
-		return name
-	end
+	if type(name) == "string" and name ~= "" then return name end
 	return TIER_NAMES[crystalTier(inst)] or "Unknown"
 end
 
 local function crystalName(inst)
 	local name = getAttr(inst, "CrystalName")
-	if type(name) == "string" and name ~= "" then
-		return name
-	end
+	if type(name) == "string" and name ~= "" then return name end
 	return inst.Name
 end
 
 local function crystalColor(inst)
-	local r = tonumber(getAttr(inst, "TierColorR"))
-	local g = tonumber(getAttr(inst, "TierColorG"))
-	local b = tonumber(getAttr(inst, "TierColorB"))
-	if r and g and b then
-		return Color3.fromRGB(r, g, b)
-	end
+	local r, g, b = tonumber(getAttr(inst, "TierColorR")), tonumber(getAttr(inst, "TierColorG")), tonumber(getAttr(inst, "TierColorB"))
+	if r and g and b then return Color3.fromRGB(r, g, b) end
 	return COLORS.default
 end
 
 local function mutationLuck(name)
-	if type(name) ~= "string" or name == "" then
-		return 1
-	end
+	if type(name) ~= "string" or name == "" then return 1 end
 	return MUTATION_LUCK[name] or 1
 end
 
@@ -478,90 +391,52 @@ local function combinedLuckMult(inst)
 	local extra = getAttr(inst, "ExtraMutations")
 	if type(extra) == "string" and extra ~= "" then
 		for name in string.gmatch(extra, "[^,]+") do
-			if name ~= "" then
-				multiplier *= mutationLuck(name)
-			end
+			if name ~= "" then multiplier *= mutationLuck(name) end
 		end
 	end
 
-	if getAttr(inst, "IsBloodCrystal") == true then
-		multiplier *= LUCK.blood
-	end
-
+	if getAttr(inst, "IsBloodCrystal") == true then multiplier *= LUCK.blood end
 	if getAttr(inst, "AdminMutation") == "Radioactive" and mutation ~= "Radioactive" then
-		local hasRadioactive = type(extra) == "string" and extra:find("Radioactive", 1, true) ~= nil
-		if not hasRadioactive then
+		if type(extra) ~= "string" or not extra:find("Radioactive", 1, true) then
 			multiplier *= mutationLuck("Radioactive")
 		end
 	end
-
 	return multiplier
 end
 
 local function computeLuck(inst)
 	local tier = crystalTier(inst)
-	if tier <= 0 then
-		return 0
-	end
-
+	if tier <= 0 then return 0 end
 	local weight = math.max(0, crystalWeight(inst))
 	local base = (LUCK.rarity[tier] or LUCK.rarity[1]) * math.min(weight, LUCK.cap) ^ LUCK.exponent * LUCK.base
-
-	if getAttr(inst, "BombCrystal") == true then
-		base *= LUCK.bomb
-	end
-
+	if getAttr(inst, "BombCrystal") == true then base *= LUCK.bomb end
 	return base * combinedLuckMult(inst)
 end
 
-local function luckLabel(inst)
-	local hover = inst:FindFirstChild("CrystalHover")
-	if not hover then
-		return nil
-	end
-
-	local label = hover:FindFirstChild("LuckBoost")
-	if not label or not label:IsA("TextLabel") then
-		return nil
-	end
-
-	return label
-end
-
 local function luckLabelText(inst)
-	local label = luckLabel(inst)
-	if not label then
-		return nil
-	end
-	return label.Text
+	local hover = inst:FindFirstChild("CrystalHover")
+	local label = hover and hover:FindFirstChild("LuckBoost")
+	if label and label:IsA("TextLabel") then return label.Text end
+	return nil
 end
 
 local function crystalLuck(inst)
 	local text = luckLabelText(inst)
 	if type(text) == "string" then
 		local pct = tonumber(text:match("([%d%.]+)%s*%%"))
-		if pct and pct > 0 then
-			return pct / 100
-		end
+		if pct and pct > 0 then return pct / 100 end
 	end
 	return computeLuck(inst)
 end
 
 local function meetsFilter(inst, value)
-	if not valueFilter then
-		return true
-	end
-
+	if not valueFilter then return true end
 	return (value or crystalValue(inst)) >= minValue
 end
 
 local function ownsGamepass(name)
 	local folder = LocalPlayer:FindFirstChild("GamepassesOwned")
-	if not folder then
-		return false
-	end
-
-	local flag = folder:FindFirstChild(name)
+	local flag = folder and folder:FindFirstChild(name)
 	return flag ~= nil and flag:IsA("BoolValue") and flag.Value == true
 end
 
@@ -569,106 +444,64 @@ local function realStat(name)
 	local data = LocalPlayer:FindFirstChild("PlayerData")
 	local stats = data and data:FindFirstChild("RealStats")
 	local entry = stats and stats:FindFirstChild(name)
-	if not entry then
-		return nil
-	end
-	return tonumber(entry.Value)
+	return entry and tonumber(entry.Value) or nil
 end
 
 local function hasActiveRune(keyword)
 	local data = LocalPlayer:FindFirstChild("PlayerData")
 	local plot = data and data:FindFirstChild("PlotData")
 	local runes = plot and plot:FindFirstChild("Runes")
-	if not runes then
-		return false
-	end
+	if not runes then return false end
 
 	for _, child in ipairs(runes:GetChildren()) do
 		local runeName = child:GetAttribute("RuneName")
 		if type(runeName) == "string" and runeName:find(keyword, 1, true) then
-			if (tonumber(child:GetAttribute("Remaining")) or 0) > 0 then
-				return true
-			end
+			if (tonumber(child:GetAttribute("Remaining")) or 0) > 0 then return true end
 		end
 	end
-
 	return false
 end
 
 local function backpackCapacity()
-	if LocalPlayer:GetAttribute("InfBackpack") == true then
-		return math.huge
-	end
-
+	if LocalPlayer:GetAttribute("InfBackpack") == true then return math.huge end
 	local base = realStat("CarryWeight") or 10
-	if ownsGamepass("CarryKgPlus4") then
-		base *= 4
-	end
-
+	if ownsGamepass("CarryKgPlus4") then base *= 4 end
 	local total = base + (realStat("CarryWeightBonus") or 0)
-
-	if hasActiveRune("Weight") then
-		return total * 2
-	end
-
-	return total
+	return hasActiveRune("Weight") and (total * 2) or total
 end
 
 local function backpackWeight()
 	local total = 0
-
 	local function scan(container)
-		if not container then
-			return
-		end
+		if not container then return end
 		for _, child in ipairs(container:GetChildren()) do
 			if child:IsA("Tool") and getAttr(child, "Tier") ~= nil then
 				local kg = tonumber(getAttr(child, "WeightKg"))
-				if kg then
-					total += kg
-				end
+				if kg then total += kg end
 			end
 		end
 	end
-
 	scan(LocalPlayer:FindFirstChildOfClass("Backpack"))
 	scan(LocalPlayer.Character)
-
 	return total
 end
 
 local function backpackFree()
 	local capacity = backpackCapacity()
-	if capacity == math.huge then
-		return math.huge
-	end
+	if capacity == math.huge then return math.huge end
 	return capacity - backpackWeight()
 end
 
 local function looksLikeCrystal(inst)
-	if not inst:IsA("BasePart") then
-		return false
-	end
-	return inst.Name:find("Crystal", 1, true) ~= nil
+	return inst:IsA("BasePart") and inst.Name:find("Crystal", 1, true) ~= nil
 end
 
-local crystalFlags = setmetatable({}, { __mode = "k" })
-
 local function isCrystal(inst)
-	local cached = crystalFlags[inst]
-	if cached ~= nil then
-		return cached
+	if not inst or not inst:IsA("BasePart") then return false end
+	if getAttr(inst, "Value") ~= nil then
+		return getAttr(inst, "CrystalName") ~= nil or inst.Name:find("Crystal", 1, true) ~= nil
 	end
-
-	local result = false
-
-	if inst:IsA("BasePart") and getAttr(inst, "Value") ~= nil then
-		result = getAttr(inst, "CrystalName") ~= nil or inst.Name:find("Crystal", 1, true) ~= nil
-	end
-
-	crystalFlags[inst] = result
-
-	return result
+	return false
 end
 
 local containerList = {}
@@ -676,52 +509,28 @@ local containerClock = 0
 
 local function rebuildContainers()
 	table.clear(containerList)
-
 	local seen = {}
-
 	local function push(container)
-		if not container or seen[container] then
-			return
-		end
+		if not container or seen[container] then return end
 		seen[container] = true
 		containerList[#containerList + 1] = container
 	end
 
 	push(Workspace)
-
-	for _, name in ipairs(CONTAINER_NAMES) do
-		push(Workspace:FindFirstChild(name))
-	end
-
+	for _, name in ipairs(CONTAINER_NAMES) do push(Workspace:FindFirstChild(name)) end
 	local things = Workspace:FindFirstChild("Things")
 	if things then
-		for _, name in ipairs(CONTAINER_NAMES) do
-			push(things:FindFirstChild(name))
-		end
+		for _, name in ipairs(CONTAINER_NAMES) do push(things:FindFirstChild(name)) end
 	end
 end
 
 local function eachContainer(fn)
 	local now = os.clock()
-	local stale = #containerList == 0 or now - containerClock >= 1
-
-	if not stale then
-		for _, container in ipairs(containerList) do
-			if not container.Parent and container ~= Workspace then
-				stale = true
-				break
-			end
-		end
-	end
-
-	if stale then
+	if #containerList == 0 or now - containerClock >= 1.5 then
 		containerClock = now
 		rebuildContainers()
 	end
-
-	for _, container in ipairs(containerList) do
-		fn(container)
-	end
+	for _, container in ipairs(containerList) do fn(container) end
 end
 
 local function newLabel(name, parent, order, total, color, rich, maxText)
@@ -744,25 +553,13 @@ local function newLabel(name, parent, order, total, color, rich, maxText)
 	local constraint = Instance.new("UITextSizeConstraint")
 	constraint.MaxTextSize = maxText
 	constraint.Parent = label
-
 	return label, constraint
 end
 
-local function crystalGuiSize()
-	return UDim2.fromOffset(ESP.width * espScale, ESP.height * espScale)
-end
-
-local function crystalTextSize()
-	return math.max(6, math.floor(ESP.text * espScale + 0.5))
-end
-
-local function playerGuiSize()
-	return UDim2.fromOffset(PLAYER.width * playerScale, PLAYER.height * playerScale)
-end
-
-local function playerTextSize()
-	return math.max(6, math.floor(PLAYER.text * playerScale + 0.5))
-end
+local function crystalGuiSize() return UDim2.fromOffset(ESP.width * espScale, ESP.height * espScale) end
+local function crystalTextSize() return math.max(6, math.floor(ESP.text * espScale + 0.5)) end
+local function playerGuiSize() return UDim2.fromOffset(PLAYER.width * playerScale, PLAYER.height * playerScale) end
+local function playerTextSize() return math.max(6, math.floor(PLAYER.text * playerScale + 0.5)) end
 
 local function createEntry(inst)
 	local billboard = Instance.new("BillboardGui")
@@ -795,14 +592,8 @@ end
 
 local function destroyEntry(inst, entry)
 	entry = entry or espCache[inst]
-	if not entry then
-		return
-	end
-
-	if entry.gui then
-		entry.gui:Destroy()
-	end
-
+	if not entry then return end
+	if entry.gui then entry.gui:Destroy() end
 	espCache[inst] = nil
 	espCount -= 1
 	statsDirty = true
@@ -811,28 +602,18 @@ end
 local function applyEspScale()
 	local size = crystalGuiSize()
 	local textSize = crystalTextSize()
-
 	for _, entry in pairs(espCache) do
-		if entry.gui then
-			entry.gui.Size = size
-		end
-		for _, constraint in ipairs(entry.constraints) do
-			constraint.MaxTextSize = textSize
-		end
+		if entry.gui then entry.gui.Size = size end
+		for _, constraint in ipairs(entry.constraints) do constraint.MaxTextSize = textSize end
 	end
 end
 
 local function applyPlayerScale()
 	local size = playerGuiSize()
 	local textSize = playerTextSize()
-
 	for _, entry in pairs(playerCache) do
-		if entry.gui then
-			entry.gui.Size = size
-		end
-		for _, constraint in ipairs(entry.constraints) do
-			constraint.MaxTextSize = textSize
-		end
+		if entry.gui then entry.gui.Size = size end
+		for _, constraint in ipairs(entry.constraints) do constraint.MaxTextSize = textSize end
 	end
 end
 
@@ -840,10 +621,7 @@ local function applyExtra(entry, distanceText)
 	entry.distanceText = distanceText
 	entry.extra.Text = string.format(
 		'<font color="#%s">%s</font>  \u{2022}  <font color="#%s">%s</font>',
-		COLORS.hexDistance,
-		distanceText,
-		COLORS.hexLuck,
-		entry.luckText
+		COLORS.hexDistance, distanceText, COLORS.hexLuck, entry.luckText
 	)
 end
 
@@ -851,7 +629,6 @@ local function buildTitle(inst)
 	local rarity = crystalRarity(inst)
 	local name = crystalName(inst)
 	local mutation = getAttr(inst, "Mutation")
-
 	if type(mutation) == "string" and mutation ~= "" then
 		return string.format("[%s] %s (%s)", rarity, name, mutation)
 	end
@@ -863,7 +640,6 @@ local function applyDetails(inst, entry, origin)
 	local color = crystalColor(inst)
 	local money = formatShort(crystalValue(inst), "$")
 	local weight = formatWeight(crystalWeight(inst))
-
 	local luckOk, luck = pcall(crystalLuck, inst)
 	entry.luckText = formatLuck(luckOk and luck or 0)
 
@@ -871,11 +647,7 @@ local function applyDetails(inst, entry, origin)
 	entry.rarity.TextColor3 = color
 	entry.info.Text = string.format("%s  \u{2022}  %s", money, weight)
 
-	local distanceText = "--"
-	if origin then
-		distanceText = formatDistance((inst.Position - origin).Magnitude)
-	end
-
+	local distanceText = origin and formatDistance((inst.Position - origin).Magnitude) or "--"
 	applyExtra(entry, distanceText)
 end
 
@@ -892,61 +664,34 @@ local function crystalSignature(inst)
 	}, "|")
 end
 
-local function markDirty(inst)
-	dirty[inst] = true
-end
+local function markDirty(inst) dirty[inst] = true end
 
 local function untrackCrystal(inst)
 	local conns = registry[inst]
-	if not conns then
-		return
-	end
-
-	for _, connection in ipairs(conns) do
-		connection:Disconnect()
-	end
-
+	if not conns then return end
+	for _, connection in ipairs(conns) do connection:Disconnect() end
 	registry[inst] = nil
 	registryCount -= 1
 	dirty[inst] = nil
 	candidates[inst] = nil
 	statsDirty = true
-
 	destroyEntry(inst)
 end
 
 local function trackCrystal(inst)
-	if registry[inst] then
-		return
-	end
-
+	if registry[inst] then return end
 	local conns = {}
 	registry[inst] = conns
 	registryCount += 1
 	statsDirty = true
 
 	local ok = pcall(function()
-		conns[#conns + 1] = inst.Destroying:Connect(function()
-			untrackCrystal(inst)
-		end)
-
+		conns[#conns + 1] = inst.Destroying:Connect(function() untrackCrystal(inst) end)
 		conns[#conns + 1] = inst.AncestryChanged:Connect(function()
-			if not inst:IsDescendantOf(Workspace) then
-				untrackCrystal(inst)
-			end
+			if not inst:IsDescendantOf(Workspace) then untrackCrystal(inst) end
 		end)
-
 		for _, name in ipairs(WATCHED_ATTRIBUTES) do
-			conns[#conns + 1] = inst:GetAttributeChangedSignal(name):Connect(function()
-				markDirty(inst)
-			end)
-		end
-
-		local label = luckLabel(inst)
-		if label then
-			conns[#conns + 1] = label:GetPropertyChangedSignal("Text"):Connect(function()
-				markDirty(inst)
-			end)
+			conns[#conns + 1] = inst:GetAttributeChangedSignal(name):Connect(function() markDirty(inst) end)
 		end
 	end)
 
@@ -954,43 +699,27 @@ local function trackCrystal(inst)
 		untrackCrystal(inst)
 		return
 	end
-
 	markDirty(inst)
 end
 
 local function syncCrystal(inst)
 	dirty[inst] = nil
-
-	if not registry[inst] then
-		return
-	end
-
-	if not inst.Parent then
-		untrackCrystal(inst)
+	if not registry[inst] or not inst.Parent then
+		if registry[inst] then untrackCrystal(inst) end
 		return
 	end
 
 	local entry = espCache[inst]
-	local hidden = not espActive or getAttr(inst, "Collected") == true
-
-	if not hidden then
-		hidden = not meetsFilter(inst)
-	end
+	local hidden = not espActive or getAttr(inst, "Collected") == true or not meetsFilter(inst)
 
 	if hidden then
-		if entry then
-			destroyEntry(inst, entry)
-		end
+		if entry then destroyEntry(inst, entry) end
 		return
 	end
 
 	if not entry then
 		local built, result = pcall(createEntry, inst)
-		if not built then
-			reportError("billboard", result)
-			return
-		end
-
+		if not built then return end
 		entry = result
 		espCache[inst] = entry
 		espCount += 1
@@ -998,81 +727,56 @@ local function syncCrystal(inst)
 	end
 
 	local signature = crystalSignature(inst)
-	if signature == entry.signature then
-		return
-	end
+	if signature == entry.signature then return end
 
 	local root = getRoot()
-	local ok, err = pcall(applyDetails, inst, entry, root and root.Position or nil)
-	if ok then
-		entry.signature = signature
-	else
-		reportError("details", err)
-	end
+	local ok = pcall(applyDetails, inst, entry, root and root.Position or nil)
+	if ok then entry.signature = signature end
 end
 
 local sweepSeen = {}
-
 local function sweep()
-	local seen = sweepSeen
-	table.clear(seen)
-
+	table.clear(sweepSeen)
 	eachContainer(function(container)
 		for _, child in ipairs(container:GetChildren()) do
-			if not seen[child] and isCrystal(child) then
-				seen[child] = true
-				if not registry[child] then
-					trackCrystal(child)
-				end
+			if not sweepSeen[child] and isCrystal(child) then
+				sweepSeen[child] = true
+				if not registry[child] then trackCrystal(child) end
 			end
 		end
 	end)
 
 	local stale
 	for inst in pairs(registry) do
-		if not seen[inst] then
+		if not sweepSeen[inst] then
 			stale = stale or {}
 			stale[#stale + 1] = inst
 		end
 	end
 
 	if stale then
-		for _, inst in ipairs(stale) do
-			untrackCrystal(inst)
-		end
+		for _, inst in ipairs(stale) do untrackCrystal(inst) end
 	end
 end
 
 local lastDistanceOrigin
-
 local function updateDistances()
 	local root = getRoot()
-	if not root then
-		return
-	end
-
+	if not root then return end
 	local origin = root.Position
-
-	if lastDistanceOrigin and (origin - lastDistanceOrigin).Magnitude < 1 then
-		return
-	end
-
+	if lastDistanceOrigin and (origin - lastDistanceOrigin).Magnitude < 1 then return end
 	lastDistanceOrigin = origin
 
 	for inst, entry in pairs(espCache) do
 		if inst.Parent then
 			local text = formatDistance((inst.Position - origin).Magnitude)
-			if text ~= entry.distanceText then
-				applyExtra(entry, text)
-			end
+			if text ~= entry.distanceText then applyExtra(entry, text) end
 		end
 	end
 end
 
 local function clearEsp()
-	for inst, entry in pairs(espCache) do
-		destroyEntry(inst, entry)
-	end
+	for inst, entry in pairs(espCache) do destroyEntry(inst, entry) end
 	espCache = {}
 	espCount = 0
 	statsDirty = true
@@ -1084,15 +788,10 @@ local function clearRegistry()
 		all = all or {}
 		all[#all + 1] = inst
 	end
-
 	if all then
-		for _, inst in ipairs(all) do
-			untrackCrystal(inst)
-		end
+		for _, inst in ipairs(all) do untrackCrystal(inst) end
 	end
-
 	clearEsp()
-
 	registry = {}
 	candidates = {}
 	dirty = {}
@@ -1101,20 +800,12 @@ local function clearRegistry()
 end
 
 local function requestRefresh()
-	for inst in pairs(registry) do
-		dirty[inst] = true
-	end
+	for inst in pairs(registry) do dirty[inst] = true end
 	sweepAccumulator = math.huge
 end
 
-local function trackingEnabled()
-	return espActive
-end
-
 local function onContainerChild(child)
-	if looksLikeCrystal(child) then
-		candidates[child] = os.clock() + ESP.ttl
-	end
+	if looksLikeCrystal(child) then candidates[child] = os.clock() + ESP.ttl end
 end
 
 local function watchContainers()
@@ -1124,11 +815,8 @@ local function watchContainers()
 			containerConns[container] = nil
 		end
 	end
-
 	eachContainer(function(container)
-		if containerConns[container] then
-			return
-		end
+		if containerConns[container] then return end
 		containerConns[container] = container.ChildAdded:Connect(onContainerChild)
 	end)
 end
@@ -1141,7 +829,7 @@ local function unwatchContainers()
 end
 
 local function updateTracking()
-	if trackingEnabled() then
+	if espActive then
 		sweepAccumulator = math.huge
 		watchContainers()
 		requestRefresh()
@@ -1152,19 +840,15 @@ local function updateTracking()
 end
 
 local StatsLabel
-
 local espConn = RunService.Heartbeat:Connect(function(deltaTime)
 	if statsDirty and StatsLabel then
 		statsDirty = false
 		StatsLabel:SetText(string.format("Tracking: %d  |  Shown: %d", registryCount, espCount))
 	end
 
-	if not trackingEnabled() then
-		return
-	end
+	if not espActive then return end
 
 	local now = os.clock()
-
 	for inst, expiry in pairs(candidates) do
 		if not inst.Parent then
 			candidates[inst] = nil
@@ -1179,49 +863,32 @@ local espConn = RunService.Heartbeat:Connect(function(deltaTime)
 	local deadline = now + ESP.budget
 	if next(dirty) ~= nil then
 		for inst in pairs(dirty) do
-			local ok, err = pcall(syncCrystal, inst)
-			if not ok then
-				dirty[inst] = nil
-				reportError("sync", err)
-			end
-			if os.clock() > deadline then
-				break
-			end
+			pcall(syncCrystal, inst)
+			dirty[inst] = nil
+			if os.clock() > deadline then break end
 		end
 	end
 
 	sweepAccumulator += deltaTime
 	if sweepAccumulator >= ESP.sweep then
 		sweepAccumulator = 0
-		local ok, err = pcall(function()
+		pcall(function()
 			watchContainers()
 			sweep()
 		end)
-		if not ok then
-			reportError("sweep", err)
-		end
 	end
 
 	distanceAccumulator += deltaTime
 	if distanceAccumulator >= PACE.distance then
 		distanceAccumulator = 0
-		local ok, err = pcall(updateDistances)
-		if not ok then
-			reportError("distance", err)
-		end
+		pcall(updateDistances)
 	end
 end)
 
 local function destroyPlayerEntry(player)
 	local entry = playerCache[player]
-	if not entry then
-		return
-	end
-
-	if entry.gui then
-		entry.gui:Destroy()
-	end
-
+	if not entry then return end
+	if entry.gui then entry.gui:Destroy() end
 	playerCache[player] = nil
 end
 
@@ -1241,7 +908,6 @@ local function createPlayerEntry(player)
 	local distanceLabel, distanceConstraint = newLabel("Distance", billboard, 1, 2, COLORS.extra, false, textSize)
 
 	nameLabel.Text = player.DisplayName
-
 	return {
 		gui = billboard,
 		name = nameLabel,
@@ -1253,17 +919,12 @@ local function createPlayerEntry(player)
 end
 
 local function clearPlayerEsp()
-	for player in pairs(playerCache) do
-		destroyPlayerEntry(player)
-	end
+	for player in pairs(playerCache) do destroyPlayerEntry(player) end
 	playerCache = {}
 end
 
 local function updatePlayerEsp()
-	if not playerEspActive then
-		return
-	end
-
+	if not playerEspActive then return end
 	local root = getRoot()
 	local origin = root and root.Position or nil
 
@@ -1279,16 +940,11 @@ local function updatePlayerEsp()
 					if built then
 						entry = result
 						playerCache[player] = entry
-					else
-						reportError("player", result)
 					end
 				end
 
 				if entry then
-					if entry.gui.Adornee ~= target then
-						entry.gui.Adornee = target
-					end
-
+					if entry.gui.Adornee ~= target then entry.gui.Adornee = target end
 					if entry.nameText ~= player.DisplayName then
 						entry.nameText = player.DisplayName
 						entry.name.Text = player.DisplayName
@@ -1306,18 +962,8 @@ local function updatePlayerEsp()
 		end
 	end
 
-	local gone
 	for player in pairs(playerCache) do
-		if player == LocalPlayer or not player.Parent then
-			gone = gone or {}
-			gone[#gone + 1] = player
-		end
-	end
-
-	if gone then
-		for _, player in ipairs(gone) do
-			destroyPlayerEntry(player)
-		end
+		if player == LocalPlayer or not player.Parent then destroyPlayerEntry(player) end
 	end
 end
 
@@ -1325,58 +971,32 @@ local streamMark = 0
 local streamSpot
 
 local function requestStream(position)
-	if typeof(position) ~= "Vector3" then
-		return
-	end
-
+	if typeof(position) ~= "Vector3" then return end
 	local now = os.clock()
-
-	if streamSpot and now - streamMark < 0.3 and (streamSpot - position).Magnitude < 32 then
-		return
-	end
-
+	if streamSpot and now - streamMark < 0.3 and (streamSpot - position).Magnitude < 32 then return end
 	streamMark = now
 	streamSpot = position
-
 	task.spawn(function()
-		pcall(function()
-			LocalPlayer:RequestStreamAroundAsync(position, 1)
-		end)
+		pcall(function() LocalPlayer:RequestStreamAroundAsync(position, 1) end)
 	end)
 end
 
 local function applyPivot(cframe)
 	local character = LocalPlayer.Character
-	if not character then
-		return false
-	end
-
+	if not character then return false end
 	requestStream(cframe.Position)
 
 	local root = getRoot()
-	if not root then
-		return false
-	end
+	if not root then return false end
 
-	local moved = pcall(function()
-		character:PivotTo(cframe)
-	end)
-
-	if not moved then
-		moved = pcall(function()
-			root.CFrame = cframe
-		end)
-	end
-
-	if not moved then
-		return false
-	end
+	local moved = pcall(function() character:PivotTo(cframe) end)
+	if not moved then moved = pcall(function() root.CFrame = cframe end) end
+	if not moved then return false end
 
 	pcall(function()
 		root.AssemblyLinearVelocity = Vector3.zero
 		root.AssemblyAngularVelocity = Vector3.zero
 	end)
-
 	return true
 end
 
@@ -1388,23 +1008,14 @@ local function findClearGoal(position, ignore)
 
 	for _, offset in ipairs(TP.clear) do
 		local candidate = position + offset
-		local ok, hits = pcall(function()
-			return Workspace:GetPartBoundsInRadius(candidate, 2.5, params)
-		end)
-
-		if ok and #hits == 0 then
-			return candidate
-		end
+		local ok, hits = pcall(function() return Workspace:GetPartBoundsInRadius(candidate, 2.5, params) end)
+		if ok and #hits == 0 then return candidate end
 	end
-
 	return position + TP.clear[#TP.clear]
 end
 
 local function finishTeleport()
-	if not tpState then
-		return
-	end
-
+	if not tpState then return end
 	local root = getRoot()
 	if root then
 		pcall(function()
@@ -1413,8 +1024,7 @@ local function finishTeleport()
 		end)
 	end
 
-	local character = LocalPlayer.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		pcall(function()
 			humanoid.PlatformStand = false
@@ -1424,61 +1034,35 @@ local function finishTeleport()
 			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end)
 	end
-
 	tpState = nil
 end
 
 local function teleportTo(target)
-	local position
-	if typeof(target) == "Vector3" then
-		position = target
-	elseif typeof(target) == "Instance" and target.Parent then
-		position = target.Position
-	end
-
-	if not position then
-		return false
-	end
+	local position = typeof(target) == "Vector3" and target or (typeof(target) == "Instance" and target.Parent and target.Position)
+	if not position then return false end
 
 	local character = LocalPlayer.Character
-	if not character then
-		return false
-	end
-
 	local root = getRoot()
-	if not root then
-		return false
-	end
+	if not character or not root then return false end
 
 	finishTeleport()
 
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		pcall(function()
-			if humanoid.SeatPart or humanoid.Sit then
-				humanoid.Sit = false
-			end
+			if humanoid.SeatPart or humanoid.Sit then humanoid.Sit = false end
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 		end)
 	end
 
 	local ignore = { character }
-	if typeof(target) == "Instance" then
-		ignore[#ignore + 1] = target
-	end
+	if typeof(target) == "Instance" then ignore[#ignore + 1] = target end
 
 	local goalFrame = CFrame.new(findClearGoal(position + TP.offset, ignore))
+	if not applyPivot(goalFrame) then return false end
 
-	if not applyPivot(goalFrame) then
-		return false
-	end
-
-	tpState = {
-		goal = goalFrame,
-		holdUntil = os.clock() + TP.hold,
-	}
-
+	tpState = { goal = goalFrame, holdUntil = os.clock() + TP.hold }
 	return true
 end
 
@@ -1490,28 +1074,10 @@ local function schedule(delay, fn)
 	pendingActions[#pendingActions + 1] = { at = os.clock() + delay, fn = fn }
 end
 
-local promptCache = setmetatable({}, { __mode = "k" })
-
 local function crystalPrompt(inst)
-	local cached = promptCache[inst]
-	if cached and cached.Parent then
-		return cached
-	end
-
 	local ok, prompt = pcall(inst.FindFirstChildOfClass, inst, "ProximityPrompt")
-
-	if not (ok and prompt) then
-		ok, prompt = pcall(inst.FindFirstChildWhichIsA, inst, "ProximityPrompt", true)
-	end
-
-	if ok and prompt then
-		promptCache[inst] = prompt
-		return prompt
-	end
-
-	promptCache[inst] = nil
-
-	return nil
+	if not (ok and prompt) then ok, prompt = pcall(inst.FindFirstChildWhichIsA, inst, "ProximityPrompt", true) end
+	return (ok and prompt) and prompt or nil
 end
 
 local function surfaceDistance(part, origin)
@@ -1525,12 +1091,7 @@ local function surfaceDistance(part, origin)
 		)
 		return (point - clamped).Magnitude
 	end)
-
-	if ok and distance then
-		return distance
-	end
-
-	return (part.Position - origin).Magnitude
+	return (ok and distance) and distance or (part.Position - origin).Magnitude
 end
 
 local function firePrompt(prompt)
@@ -1550,30 +1111,12 @@ local function firePrompt(prompt)
 		prompt.MaxActivationDistance = 1000
 	end)
 
-	local fired = false
-
-	if typeof(fireproximityprompt) == "function" then
-		fired = pcall(fireproximityprompt, prompt, 1)
-		if not fired then
-			fired = pcall(fireproximityprompt, prompt)
-		end
-	end
-
-	if not fired then
-		fired = pcall(function()
-			prompt:InputHoldBegin()
-			prompt:InputHoldEnd()
-		end)
-	end
+	fireproximityprompt(prompt)
 
 	schedule(PICK.restore, function()
 		local saved = promptRestores[prompt]
-		if not saved then
-			return
-		end
-
+		if not saved then return end
 		promptRestores[prompt] = nil
-
 		if prompt.Parent then
 			prompt.HoldDuration = saved.hold
 			prompt.RequiresLineOfSight = saved.sight
@@ -1581,59 +1124,37 @@ local function firePrompt(prompt)
 			prompt.MaxActivationDistance = saved.range
 		end
 	end)
-
-	return fired
+	return true
 end
 
 local pickupParams = OverlapParams.new()
 pickupParams.FilterType = Enum.RaycastFilterType.Exclude
 
-pcall(function()
-	pickupParams.MaxParts = 300
-	pickupParams.RespectCanCollide = false
-end)
-
 local pickupFound = {}
 local pickupSeen = {}
 
 local function pickupCandidates(free, origin)
-	local found = pickupFound
-	local seen = pickupSeen
-	table.clear(found)
-	table.clear(seen)
+	table.clear(pickupFound)
+	table.clear(pickupSeen)
 	local now = os.clock()
 
 	local function consider(child)
-		if not child or seen[child] then
-			return
-		end
-		seen[child] = true
-
-		if not child.Parent or not isCrystal(child) or getAttr(child, "Collected") == true then
-			return
-		end
+		if not child or pickupSeen[child] or not child.Parent or not isCrystal(child) or getAttr(child, "Collected") == true then return end
+		pickupSeen[child] = true
 
 		local claim = claimed[child]
-		if claim and now - claim < PICK.retry then
-			return
-		end
+		if claim and now - claim < PICK.retry then return end
 
 		local value = crystalValue(child)
-		if not meetsFilter(child, value) then
-			return
-		end
+		if not meetsFilter(child, value) then return end
 
 		local weight = crystalWeight(child)
-		if weight > free then
-			return
-		end
+		if weight > free then return end
 
 		local distance = surfaceDistance(child, origin)
-		if distance > PICK.range then
-			return
-		end
+		if distance > PICK.range then return end
 
-		found[#found + 1] = {
+		pickupFound[#pickupFound + 1] = {
 			inst = child,
 			prompt = crystalPrompt(child),
 			value = value,
@@ -1643,75 +1164,44 @@ local function pickupCandidates(free, origin)
 	end
 
 	pickupParams.FilterDescendantsInstances = { LocalPlayer.Character or LocalPlayer }
-
-	local ok, hits = pcall(function()
-		return Workspace:GetPartBoundsInRadius(origin, PICK.range + PICK.pad, pickupParams)
-	end)
+	local ok, hits = pcall(function() return Workspace:GetPartBoundsInRadius(origin, PICK.range + PICK.pad, pickupParams) end)
 
 	if ok and hits then
-		for _, part in ipairs(hits) do
-			consider(part)
-		end
+		for _, part in ipairs(hits) do consider(part) end
 	end
 
-	eachContainer(function(container)
-		for _, child in ipairs(container:GetChildren()) do
-			if child:IsA("BasePart") then
-				consider(child)
-			elseif child:IsA("Model") then
-				for _, inner in ipairs(child:GetChildren()) do
-					consider(inner)
-				end
-			end
-		end
-	end)
+	for inst in pairs(registry) do consider(inst) end
 
-	for inst in pairs(registry) do
-		consider(inst)
-	end
-
-	table.sort(found, function(a, b)
-		if a.value == b.value then
-			return a.distance < b.distance
-		end
+	table.sort(pickupFound, function(a, b)
+		if a.value == b.value then return a.distance < b.distance end
 		return a.value > b.value
 	end)
 
-	return found
+	return pickupFound
 end
 
 local function grabCrystal(inst, prompt)
 	local sent = false
+	if HoldComplete then sent = pcall(function() HoldComplete:FireServer(inst) end) end
 
-	if HoldComplete then
-		sent = pcall(function()
-			HoldComplete:FireServer(inst)
-		end)
-	end
-
-	if not prompt then
-		prompt = crystalPrompt(inst)
-	end
-
-	if prompt and prompt.Parent and firePrompt(prompt) then
+	prompt = prompt or crystalPrompt(inst)
+	if prompt and prompt.Parent then
+		firePrompt(prompt)
 		sent = true
 	end
 
-	if not sent and typeof(fireclickdetector) == "function" then
+	if not sent then
 		local ok, detector = pcall(inst.FindFirstChildWhichIsA, inst, "ClickDetector", true)
 		if ok and detector then
-			sent = pcall(fireclickdetector, detector, 0)
+			fireclickdetector(detector)
+			sent = true
 		end
 	end
-
 	return sent
 end
 
 local function instantPromptPatch(prompt)
-	if instantPatched[prompt] or promptRestores[prompt] then
-		return
-	end
-
+	if instantPatched[prompt] or promptRestores[prompt] then return end
 	instantPatched[prompt] = {
 		hold = prompt.HoldDuration,
 		sight = prompt.RequiresLineOfSight,
@@ -1735,111 +1225,21 @@ local function restoreInstantPrompts()
 			end)
 		end
 	end
-
 	table.clear(instantPatched)
-end
-
-local function nearbyCrystalParts(origin, radius)
-	pickupParams.FilterDescendantsInstances = { LocalPlayer.Character or LocalPlayer }
-
-	local ok, hits = pcall(function()
-		return Workspace:GetPartBoundsInRadius(origin, radius, pickupParams)
-	end)
-
-	if ok and hits then
-		return hits
-	end
-
-	return nil
-end
-
-local function refreshInstantPrompts()
-	local root = getRoot()
-	if not root then
-		return
-	end
-
-	for prompt in pairs(instantPatched) do
-		if not prompt.Parent then
-			instantPatched[prompt] = nil
-		end
-	end
-
-	local hits = nearbyCrystalParts(root.Position, PICK.instantRadius)
-	if not hits then
-		return
-	end
-
-	for _, part in ipairs(hits) do
-		if isCrystal(part) and getAttr(part, "Collected") ~= true then
-			local prompt = crystalPrompt(part)
-			if prompt then
-				instantPromptPatch(prompt)
-			end
-		end
-	end
 end
 
 local function setInstantPrompt(value)
 	instantPromptActive = value
 	instantAccumulator = math.huge
-
-	if not value then
-		restoreInstantPrompts()
-	end
-end
-
-local function instantGrab()
-	if not instantPromptActive then
-		return
-	end
-
-	local root = getRoot()
-	if not root then
-		return
-	end
-
-	local hits = nearbyCrystalParts(root.Position, PICK.range + PICK.pad)
-	if not hits then
-		return
-	end
-
-	local best, bestPrompt, bestDistance
-
-	for _, part in ipairs(hits) do
-		if part.Parent and isCrystal(part) and getAttr(part, "Collected") ~= true then
-			local distance = surfaceDistance(part, root.Position)
-			if distance <= PICK.range and (not best or distance < bestDistance) then
-				best = part
-				bestPrompt = crystalPrompt(part)
-				bestDistance = distance
-			end
-		end
-	end
-
-	if not best then
-		return
-	end
-
-	if bestPrompt me then
-		instantPromptPatch(bestPrompt)
-	end
-
-	if grabCrystal(best, bestPrompt) then
-		claimed[best] = os.clock()
-	end
+	if not value then restoreInstantPrompts() end
 end
 
 local function pickupStep()
 	local now = os.clock()
-	if now - lastPickup < PICK.cooldown then
-		return
-	end
+	if now - lastPickup < PICK.cooldown then return end
 
 	local root = getRoot()
-	if not root then
-		return
-	end
+	if not root then return end
 
 	local free = backpackFree()
 	if free <= 0 then
@@ -1851,28 +1251,19 @@ local function pickupStep()
 	end
 
 	for inst, stamp in pairs(claimed) do
-		if now - stamp >= PICK.forget or not inst.Parent then
-			claimed[inst] = nil
-		end
+		if now - stamp >= PICK.forget or not inst.Parent then claimed[inst] = nil end
 	end
 
-	local candidates = pickupCandidates(free, root.Position)
-	if #candidates == 0 then
-		requestStream(root.Position)
-		return
-	end
+	local candidatesList = pickupCandidates(free, root.Position)
+	if #candidatesList == 0 then return end
 
 	local budget = free
 	local grabs = 0
 
-	for _, entry in ipairs(candidates) do
-		if grabs >= PICK.burst then
-			break
-		end
-
+	for _, entry in ipairs(candidatesList) do
+		if grabs >= PICK.burst then break end
 		if entry.weight <= budget then
 			claimed[entry.inst] = now
-
 			if grabCrystal(entry.inst, entry.prompt) then
 				budget -= entry.weight
 				grabs += 1
@@ -1880,18 +1271,12 @@ local function pickupStep()
 		end
 	end
 
-	if grabs > 0 then
-		lastPickup = now
-	end
+	if grabs > 0 then lastPickup = now end
 end
 
 local BackpackLabel
-
 local function updateBackpackLabel()
-	if not BackpackLabel then
-		return
-	end
-
+	if not BackpackLabel then return end
 	local capacity = backpackCapacity()
 	local used = backpackWeight()
 
@@ -1904,90 +1289,46 @@ local function updateBackpackLabel()
 	BackpackLabel:SetText(string.format("Bag %.1f / %.1f kg\nFree %.1f kg", used, capacity, free))
 end
 
--- Funciones actualizadas de speedboost
 nulltime.setSpeedBoost = function(enabled, speed)
 	nulltime.SpeedBoostEnabled = enabled
-	if speed then
-		nulltime.SpeedValue = speed
-	end
+	if speed then nulltime.SpeedValue = speed end
 end
 
 local function autoFarmCrystals()
-	if not autoFarmCrystalActive then
-		return
-	end
-
+	if not autoFarmCrystalActive then return end
 	local root = getRoot()
-	if not root then
-		return
-	end
-
-	if backpackFree() <= 0 then
-		return
-	end
+	if not root or backpackFree() <= 0 then return end
 
 	for inst in pairs(registry) do
 		if inst and inst.Parent and isCrystal(inst) and getAttr(inst, "Collected") ~= true then
 			if meetsFilter(inst) then
 				teleportTo(inst)
 				grabCrystal(inst, crystalPrompt(inst))
-				task.wait(0.1)
+				task.wait(0.12)
 			end
 		end
 	end
 end
 
-local schedulerConn = RunService.Heartbeat:Connect(function(deltaTime)
+RunService.Heartbeat:Connect(function(deltaTime)
 	if tpState then
-		local ok, err = pcall(function()
-			if not applyPivot(tpState.goal) then
-				finishTeleport()
-				return
-			end
-
-			if os.clock() >= tpState.holdUntil then
+		local ok = pcall(function()
+			if not applyPivot(tpState.goal) or os.clock() >= tpState.holdUntil then
 				finishTeleport()
 			end
 		end)
-
-		if not ok then
-			finishTeleport()
-			reportError("teleport", err)
-		end
+		if not ok then finishTeleport() end
 	end
 
-	if autoPickupActive then
-		local ok, err = pcall(pickupStep)
-		if not ok then
-			reportError("pickup", err)
-		end
-	end
+	if autoPickupActive then pcall(pickupStep) end
+	if autoFarmCrystalActive then pcall(autoFarmCrystals) end
 
-	if autoFarmCrystalActive then
-		pcall(autoFarmCrystals)
-	end
-
-	if instantPromptActive then
-		instantAccumulator += deltaTime
-		if instantAccumulator >= PICK.instantTick then
-			instantAccumulator = 0
-			local ok, err = pcall(refreshInstantPrompts)
-			if not ok then
-				reportError("instant", err)
-			end
-		end
-	end
-
-	-- Lógica de Speedboost de nulltime
 	if nulltime.SpeedBoostEnabled then
 		local char = LocalPlayer.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if hum then
-			hum.WalkSpeed = nulltime.SpeedValue
-		end
+		if hum then hum.WalkSpeed = nulltime.SpeedValue end
 	end
 
-	-- Lógica de Fly de nulltime
 	if nulltime.FlyEnabled then
 		local root = getRoot()
 		local camera = Workspace.CurrentCamera
@@ -1997,7 +1338,6 @@ local schedulerConn = RunService.Heartbeat:Connect(function(deltaTime)
 				flyBodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
 				flyBodyVelocity.Parent = root
 			end
-
 			if not flyBodyGyro then
 				flyBodyGyro = Instance.new("BodyGyro")
 				flyBodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
@@ -2013,11 +1353,7 @@ local schedulerConn = RunService.Heartbeat:Connect(function(deltaTime)
 			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.yAxis end
 			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.yAxis end
 
-			if moveDir.Magnitude > 0 then
-				flyBodyVelocity.Velocity = moveDir.Unit * nulltime.FlySpeed
-			else
-				flyBodyVelocity.Velocity = Vector3.zero
-			end
+			flyBodyVelocity.Velocity = moveDir.Magnitude > 0 and (moveDir.Unit * nulltime.FlySpeed) or Vector3.zero
 			flyBodyGyro.CFrame = camera.CFrame
 		end
 	else
@@ -2025,34 +1361,21 @@ local schedulerConn = RunService.Heartbeat:Connect(function(deltaTime)
 		if flyBodyGyro then flyBodyGyro:Destroy() flyBodyGyro = nil end
 	end
 
-	if playerEspActive then
-		local ok, err = pcall(updatePlayerEsp)
-		if not ok then
-			reportError("playerEsp", err)
-		end
-	end
+	if playerEspActive then pcall(updatePlayerEsp) end
 
 	statsAccumulator += deltaTime
 	if statsAccumulator >= PACE.stats then
 		statsAccumulator = 0
-		local ok, err = pcall(updateBackpackLabel)
-		if not ok then
-			reportError("backpack", err)
-		end
+		pcall(updateBackpackLabel)
 	end
 
-	if #pendingActions == 0 then
-		return
-	end
-
-	local now = os.clock()
-	for index = #pendingActions, 1, -1 do
-		local job = pendingActions[index]
-		if now >= job.at then
-			table.remove(pendingActions, index)
-			local ok, err = pcall(job.fn)
-			if not ok then
-				reportError("action", err)
+	if #pendingActions > 0 then
+		local now = os.clock()
+		for index = #pendingActions, 1, -1 do
+			local job = pendingActions[index]
+			if now >= job.at then
+				table.remove(pendingActions, index)
+				pcall(job.fn)
 			end
 		end
 	end
@@ -2063,42 +1386,24 @@ local function sortedByScore(scoreFn)
 	local seen = {}
 
 	local function consider(inst)
-		if seen[inst] or not inst.Parent then
-			return
-		end
-
-		if getAttr(inst, "Collected") == true then
-			return
-		end
-
+		if seen[inst] or not inst.Parent or getAttr(inst, "Collected") == true then return end
 		seen[inst] = true
-
 		local ok, score = pcall(scoreFn, inst)
 		scored[#scored + 1] = { inst = inst, score = ok and score or 0 }
 	end
 
-	for inst in pairs(registry) do
-		consider(inst)
-	end
-
+	for inst in pairs(registry) do consider(inst) end
 	eachContainer(function(container)
 		for _, child in ipairs(container:GetChildren()) do
-			if isCrystal(child) then
-				consider(child)
-			end
+			if isCrystal(child) then consider(child) end
 		end
 	end)
 
-	table.sort(scored, function(a, b)
-		return a.score > b.score
-	end)
-
+	table.sort(scored, function(a, b) return a.score > b.score end)
 	return scored
 end
 
 local Mountain = {}
-local mountainConn
-
 local aimParams = RaycastParams.new()
 aimParams.FilterType = Enum.RaycastFilterType.Exclude
 aimParams.IgnoreWater = true
@@ -2117,42 +1422,21 @@ local function getAimedCrystal()
 	end
 
 	local best, bestDot
-	local seen = {}
-
-	local function consider(inst)
-		if seen[inst] or not inst.Parent then
-			return
-		end
-
-		seen[inst] = true
-
-		local offset = (inst.Position + ESP.offset) - origin
-		local magnitude = offset.Magnitude
-		if magnitude > 0 then
-			local dot = direction:Dot(offset / magnitude)
-			if not bestDot or dot > bestDot then
-				bestDot = dot
-				best = inst
-			end
-		end
-	end
-
 	for inst in pairs(espCache) do
-		consider(inst)
-	end
-
-	eachContainer(function(container)
-		for _, child in ipairs(container:GetChildren()) do
-			if isCrystal(child) then
-				consider(child)
+		if inst.Parent then
+			local offset = (inst.Position + ESP.offset) - origin
+			local mag = offset.Magnitude
+			if mag > 0 then
+				local dot = direction:Dot(offset / mag)
+				if not bestDot or dot > bestDot then
+					bestDot = dot
+					best = inst
+				end
 			end
 		end
-	end)
-
-	if best and bestDot and bestDot >= PICK.aimDot then
-		return best
 	end
-	return nil
+
+	return (best and bestDot and bestDot >= PICK.aimDot) and best or nil
 end
 
 local function aimTeleport()
@@ -2160,13 +1444,11 @@ local function aimTeleport()
 		Library:Notify("Enable Crystal ESP first", 3)
 		return
 	end
-
 	local inst = getAimedCrystal()
 	if not inst then
 		Library:Notify("No crystal aimed", 2)
 		return
 	end
-
 	if teleportTo(inst) then
 		Library:Notify(string.format("TP -> %s", crystalName(inst)), 2)
 	else
@@ -2189,51 +1471,32 @@ local function tpToRank(scoreFn, rank, formatter)
 end
 
 local function fireRemote(remote, ...)
-	if not remote then
-		return false
-	end
-
+	if not remote then return false end
 	local args = table.pack(...)
-	local ok = pcall(function()
-		remote:FireServer(table.unpack(args, 1, args.n))
-	end)
-
-	return ok
+	return pcall(function() remote:FireServer(table.unpack(args, 1, args.n)) end)
 end
 
 local function unfavoriteAll()
 	local cleared = 0
-
 	local function scan(container)
-		if not container then
-			return
-		end
-
+		if not container then return end
 		for _, child in ipairs(container:GetChildren()) do
 			if child:IsA("Tool") and child:GetAttribute("Favorited") == true then
-				pcall(function()
-					child:SetAttribute("Favorited", false)
-				end)
+				pcall(function() child:SetAttribute("Favorited", false) end)
 				fireRemote(ToggleFavorite, child, false)
 				cleared += 1
 			end
 		end
 	end
-
 	scan(LocalPlayer:FindFirstChildOfClass("Backpack"))
 	scan(LocalPlayer.Character)
-
 	return cleared
 end
 
 local sellClock = 0
-
 local function doSell()
 	local now = os.clock()
-	if now - sellClock < 1.5 then
-		return false
-	end
-
+	if now - sellClock < 1.5 then return false end
 	sellClock = now
 
 	unfavoriteAll()
@@ -2243,83 +1506,33 @@ local function doSell()
 		unfavoriteAll()
 		fireRemote(SellRequest, "all")
 	end)
-
 	return true
 end
 
 do
 	local function install()
 		local BOULDER_INFO = {
-			Mossite = {
-				rarity = "Common",
-				pickaxe = "Titanium Spike",
-				crystals = "8-11",
-				runes = "Luck / Haste",
-				color = Color3.fromRGB(150, 220, 120),
-			},
-			Voltite = {
-				rarity = "Uncommon",
-				pickaxe = "Celestial Apex",
-				crystals = "10-14",
-				runes = "Storm / Weight",
-				color = Color3.fromRGB(110, 190, 240),
-			},
-			Gildrite = {
-				rarity = "Rare",
-				pickaxe = "Eclipse Fang",
-				crystals = "11-15",
-				runes = "Fortune / Detonation",
-				color = Color3.fromRGB(255, 200, 60),
-			},
-			Rimeveil = {
-				rarity = "Epic",
-				pickaxe = "Voidreign",
-				crystals = "13-18",
-				runes = "Preservation / Warmth",
-				color = Color3.fromRGB(170, 100, 255),
-			},
-			Nocturnite = {
-				rarity = "Legendary",
-				pickaxe = "The Terminus",
-				crystals = "16-22",
-				runes = "Excavator / Colossus",
-				color = Color3.fromRGB(255, 80, 180),
-			},
+			Mossite = { rarity = "Common", pickaxe = "Titanium Spike", crystals = "8-11", runes = "Luck / Haste", color = Color3.fromRGB(150, 220, 120) },
+			Voltite = { rarity = "Uncommon", pickaxe = "Celestial Apex", crystals = "10-14", runes = "Storm / Weight", color = Color3.fromRGB(110, 190, 240) },
+			Gildrite = { rarity = "Rare", pickaxe = "Eclipse Fang", crystals = "11-15", runes = "Fortune / Detonation", color = Color3.fromRGB(255, 200, 60) },
+			Rimeveil = { rarity = "Epic", pickaxe = "Voidreign", crystals = "13-18", runes = "Preservation / Warmth", color = Color3.fromRGB(170, 100, 255) },
+			Nocturnite = { rarity = "Legendary", pickaxe = "The Terminus", crystals = "16-22", runes = "Excavator / Colossus", color = Color3.fromRGB(255, 80, 180) },
 		}
 
 		local BOULDER_OFFSET = Vector3.new(0, 7, 0)
 		local BOULDER_WIDTH = 300
 		local BOULDER_HEIGHT = 78
-		local BOULDER_STEP = 0.4
-
-		local GRAB_RANGE = 20
-		local GRAB_STEP = 0.15
-		local GRAB_LIMIT = 4
-		local GRAB_RETRY = 0.2
+		local BOULDER_STEP = 0.5
 
 		local boulderEsp = false
-		local autoGrab = false
-
 		local boulderCache = {}
-		local grabbed = {}
-
 		local boulderClock = 0
-		local grabClock = 0
 
-		local scanParams = OverlapParams.new()
-		scanParams.FilterType = Enum.RaycastFilterType.Exclude
-
-		local function textSize()
-			return math.max(6, math.floor(ESP.text * boulderScale + 0.5))
-		end
+		local function textSize() return math.max(6, math.floor(ESP.text * boulderScale + 0.5)) end
 
 		local function anchorPart(inst)
-			if inst:IsA("BasePart") then
-				return inst
-			end
-			if inst:IsA("Model") then
-				return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
-			end
+			if inst:IsA("BasePart") then return inst end
+			if inst:IsA("Model") then return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart") end
 			return nil
 		end
 
@@ -2337,8 +1550,7 @@ do
 
 			local total = #colors
 			local size = textSize()
-			local labels = {}
-			local constraints = {}
+			local labels, constraints = {}, {}
 
 			for index, color in ipairs(colors) do
 				local label, constraint = newLabel("Line" .. index, billboard, index - 1, total, color, false, size)
@@ -2346,74 +1558,46 @@ do
 				constraints[index] = constraint
 			end
 
-			return {
-				gui = billboard,
-				labels = labels,
-				constraints = constraints,
-				width = width,
-				height = height,
-				text = {},
-			}
+			return { gui = billboard, labels = labels, constraints = constraints, width = width, height = height, text = {} }
 		end
 
 		local function scaleCard(entry)
 			entry.gui.Size = UDim2.fromOffset(entry.width * boulderScale, entry.height * boulderScale)
-
 			local size = textSize()
-			for _, constraint in ipairs(entry.constraints) do
-				constraint.MaxTextSize = size
-			end
+			for _, constraint in ipairs(entry.constraints) do constraint.MaxTextSize = size end
 		end
 
 		local function setLine(entry, index, text)
-			if entry.text[index] == text then
-				return
-			end
+			if entry.text[index] == text then return end
 			entry.text[index] = text
 			entry.labels[index].Text = text
 		end
 
 		local function dropCard(cache, key)
 			local entry = cache[key]
-			if not entry then
-				return
-			end
-
-			if entry.gui then
-				entry.gui:Destroy()
-			end
+			if not entry then return end
+			if entry.gui then entry.gui:Destroy() end
 			cache[key] = nil
 		end
 
 		local function clearCache(cache)
-			for key in pairs(cache) do
-				dropCard(cache, key)
-			end
+			for key in pairs(cache) do dropCard(cache, key) end
 		end
 
 		local function boulderKind(inst)
 			for kind in pairs(BOULDER_INFO) do
-				if inst.Name:find(kind, 1, true) then
-					return kind
-				end
+				if inst.Name:find(kind, 1, true) then return kind end
 			end
 			return nil
 		end
 
 		local function boulderRoots()
 			local roots = {}
-
 			local decorations = Workspace:FindFirstChild("MountainDecorations")
 			local folder = decorations and decorations:FindFirstChild("Boulders")
-			if folder then
-				roots[#roots + 1] = folder
-			end
-
+			if folder then roots[#roots + 1] = folder end
 			local test = Workspace:FindFirstChild("BoulderTest")
-			if test then
-				roots[#roots + 1] = test
-			end
-
+			if test then roots[#roots + 1] = test end
 			return roots
 		end
 
@@ -2421,9 +1605,7 @@ do
 			for _, container in ipairs(boulderRoots()) do
 				for _, child in ipairs(container:GetChildren()) do
 					local kind = boulderKind(child)
-					if kind then
-						fn(child, kind)
-					end
+					if kind then fn(child, kind) end
 				end
 			end
 		end
@@ -2435,10 +1617,7 @@ do
 
 			eachBoulder(function(model, kind)
 				local anchor = anchorPart(model)
-				if not anchor then
-					return
-				end
-
+				if not anchor then return end
 				seen[model] = true
 				local info = BOULDER_INFO[kind]
 				local entry = boulderCache[model]
@@ -2449,19 +1628,11 @@ do
 				end
 
 				if not entry then
-					entry = createCard(
-						anchor,
-						BOULDER_OFFSET,
-						{ info.color, COLORS.extra, COLORS.money },
-						BOULDER_WIDTH,
-						BOULDER_HEIGHT
-					)
+					entry = createCard(anchor, BOULDER_OFFSET, { info.color, COLORS.extra, COLORS.money }, BOULDER_WIDTH, BOULDER_HEIGHT)
 					boulderCache[model] = entry
 				end
 
-				if entry.gui.Adornee ~= anchor then
-					entry.gui.Adornee = anchor
-				end
+				if entry.gui.Adornee ~= anchor then entry.gui.Adornee = anchor end
 
 				scaleCard(entry)
 				setLine(entry, 1, string.format("[%s] %s", info.rarity, kind))
@@ -2471,34 +1642,20 @@ do
 				setLine(entry, 3, string.format("%s  \u{2022}  %s", info.runes, distance))
 			end)
 
-			local stale
 			for model in pairs(boulderCache) do
-				if not seen[model] then
-					stale = stale or {}
-					stale[#stale + 1] = model
-				end
-			end
-
-			if stale then
-				for _, model in ipairs(stale) do
-					dropCard(boulderCache, model)
-				end
+				if not seen[model] then dropCard(boulderCache, model) end
 			end
 		end
 
-		-- Nulltime Boulder Farm
 		local function boulderFarmStep()
 			if not nulltime.BoulderFarmEnabled then return end
-
 			eachBoulder(function(model, kind)
 				local anchor = anchorPart(model)
 				if anchor then
 					teleportTo(anchor)
-					task.wait(0.1)
+					task.wait(0.12)
 					local prompt = crystalPrompt(model) or anchor:FindFirstChildOfClass("ProximityPrompt")
-					if prompt then
-						firePrompt(prompt)
-					end
+					if prompt then firePrompt(prompt) end
 				end
 			end)
 		end
@@ -2523,12 +1680,10 @@ do
 		end
 
 		function Mountain.applyScale()
-			for _, entry in pairs(boulderCache) do
-				scaleCard(entry)
-			end
+			for _, entry in pairs(boulderCache) do scaleCard(entry) end
 		end
 
-		mountainConn = RunService.Heartbeat:Connect(function(deltaTime)
+		RunService.Heartbeat:Connect(function(deltaTime)
 			if boulderEsp or nulltime.BoulderESPEnabled then
 				boulderClock += deltaTime
 				if boulderClock >= BOULDER_STEP then
@@ -2537,305 +1692,202 @@ do
 				end
 			end
 
-			if nulltime.BoulderFarmEnabled then
-				pcall(boulderFarmStep)
-			end
+			if nulltime.BoulderFarmEnabled then pcall(boulderFarmStep) end
 		end)
 	end
-
 	install()
 end
 
 do
-	local function install()
-		local CrystalBox = Tabs.crystals:AddLeftGroupbox("Crystal ESP", "gem")
+	local CrystalBox = Tabs.crystals:AddLeftGroupbox("Crystal ESP", "gem")
 
-		CrystalBox:AddToggle("CrystalEsp", {
-			Text = "Crystal ESP",
-			Default = false,
-			Callback = function(value)
-				espActive = value
-				if not value then
-					clearEsp()
-				end
-				updateTracking()
-			end,
-		})
+	CrystalBox:AddToggle("CrystalEsp", {
+		Text = "Crystal ESP",
+		Default = false,
+		Callback = function(value)
+			espActive = value
+			if not value then clearEsp() end
+			updateTracking()
+		end,
+	})
 
-		CrystalBox:AddSlider("EspSize", {
-			Text = "Crystal Size",
-			Default = 70,
-			Min = 40,
-			Max = 250,
-			Rounding = 0,
-			Suffix = "%",
-			Compact = false,
-			Callback = function(value)
-				espScale = value / 100
-				applyEspScale()
-			end,
-		})
+	CrystalBox:AddSlider("EspSize", {
+		Text = "Crystal Size",
+		Default = 70, Min = 40, Max = 250, Rounding = 0, Suffix = "%", Compact = false,
+		Callback = function(value)
+			espScale = value / 100
+			applyEspScale()
+		end,
+	})
 
-		CrystalBox:AddDivider()
+	CrystalBox:AddDivider()
+	CrystalBox:AddLabel("Min Value hides and skips crystals worth less than this. Example: 500k, 2m, 1.5b. Empty shows everything", true)
 
-		CrystalBox:AddLabel("Min Value hides and skips crystals worth less than this. Example: 500k, 2m, 1.5b. Empty shows everything", true)
-
-		local function setMinValue(text)
+	CrystalBox:AddInput("EspMinValue", {
+		Text = "Min Value",
+		Default = "2m", Placeholder = "2m", Numeric = false, Finished = false,
+		Callback = function(text)
 			local parsed = parseValue(text)
-			if not parsed then
-				return
-			end
-
+			if not parsed then return end
 			minValue = math.max(parsed, 0)
 			valueFilter = minValue > 0
 			requestRefresh()
-		end
+		end,
+	})
 
-		CrystalBox:AddInput("EspMinValue", {
-			Text = "Min Value",
-			Default = "2m",
-			Placeholder = "2m",
-			Numeric = false,
-			Finished = false,
-			Callback = setMinValue,
-		})
-
-		StatsLabel = CrystalBox:AddLabel("Tracking: 0  |  Shown: 0")
-	end
-
-	install()
+	StatsLabel = CrystalBox:AddLabel("Tracking: 0  |  Shown: 0")
 end
 
 do
-	local function install()
-		local PlayerBox = Tabs.players:AddLeftGroupbox("Player ESP", "users")
+	local PlayerBox = Tabs.players:AddLeftGroupbox("Player ESP", "users")
 
-		PlayerBox:AddToggle("PlayerEsp", {
-			Text = "Player ESP",
-			Default = false,
-			Callback = function(value)
-				playerEspActive = value
-				if not value then
-					clearPlayerEsp()
-				end
-			end,
-		})
+	PlayerBox:AddToggle("PlayerEsp", {
+		Text = "Player ESP",
+		Default = false,
+		Callback = function(value)
+			playerEspActive = value
+			if not value then clearPlayerEsp() end
+		end,
+	})
 
-		PlayerBox:AddSlider("PlayerEspSize", {
-			Text = "Player Size",
-			Default = 60,
-			Min = 40,
-			Max = 250,
-			Rounding = 0,
-			Suffix = "%",
-			Compact = false,
-			Callback = function(value)
-				playerScale = value / 100
-				applyPlayerScale()
-			end,
-		})
-	end
-
-	install()
+	PlayerBox:AddSlider("PlayerEspSize", {
+		Text = "Player Size",
+		Default = 60, Min = 40, Max = 250, Rounding = 0, Suffix = "%", Compact = false,
+		Callback = function(value)
+			playerScale = value / 100
+			applyPlayerScale()
+		end,
+	})
 end
 
 do
-	local function install()
-		local BoulderBox = Tabs.boulders:AddLeftGroupbox("Boulder ESP & Farm", "mountain")
+	local BoulderBox = Tabs.boulders:AddLeftGroupbox("Boulder ESP & Farm", "mountain")
 
-		BoulderBox:AddToggle("BoulderEsp", {
-			Text = "Boulder ESP",
-			Default = false,
-			Callback = Mountain.setBoulderEsp,
-		})
+	BoulderBox:AddToggle("BoulderEsp", {
+		Text = "Boulder ESP",
+		Default = false,
+		Callback = Mountain.setBoulderEsp,
+	})
 
-		BoulderBox:AddToggle("BoulderFarm", {
-			Text = "Boulder Auto Farm",
-			Default = false,
-			Callback = function(value)
-				nulltime.BoulderFarmEnabled = value
-			end,
-		})
+	BoulderBox:AddToggle("BoulderFarm", {
+		Text = "Boulder Auto Farm",
+		Default = false,
+		Callback = function(value) nulltime.BoulderFarmEnabled = value end,
+	})
 
-		BoulderBox:AddSlider("BoulderEspSize", {
-			Text = "Boulder Size",
-			Default = 60,
-			Min = 40,
-			Max = 250,
-			Rounding = 0,
-			Suffix = "%",
-			Compact = false,
-			Callback = function(value)
-				boulderScale = value / 100
-				Mountain.applyScale()
-			end,
-		})
+	BoulderBox:AddSlider("BoulderEspSize", {
+		Text = "Boulder Size",
+		Default = 60, Min = 40, Max = 250, Rounding = 0, Suffix = "%", Compact = false,
+		Callback = function(value)
+			boulderScale = value / 100
+			Mountain.applyScale()
+		end,
+	})
 
-		BoulderBox:AddDivider()
-
-		for _, text in ipairs(Mountain.boulderList()) do
-			BoulderBox:AddLabel(text, true)
-		end
-	end
-
-	install()
+	BoulderBox:AddDivider()
+	for _, text in ipairs(Mountain.boulderList()) do BoulderBox:AddLabel(text, true) end
 end
 
 do
-	local function install()
-		local FarmBox = Tabs.farming:AddLeftGroupbox("Crystal Farm", "pickaxe")
+	local FarmBox = Tabs.farming:AddLeftGroupbox("Crystal Farm", "pickaxe")
 
-		FarmBox:AddToggle("AutoFarmCrystal", {
-			Text = "Auto Farm Crystals",
-			Default = false,
-			Callback = function(value)
-				autoFarmCrystalActive = value
-			end,
-		})
+	FarmBox:AddToggle("AutoFarmCrystal", {
+		Text = "Auto Farm Crystals",
+		Default = false,
+		Callback = function(value) autoFarmCrystalActive = value end,
+	})
 
-		FarmBox:AddToggle("AutoPickup", {
-			Text = "Auto Pickup",
-			Default = false,
-			Callback = function(value)
-				autoPickupActive = value
-			end,
-		})
+	FarmBox:AddToggle("AutoPickup", {
+		Text = "Auto Pickup",
+		Default = false,
+		Callback = function(value) autoPickupActive = value end,
+	})
 
-		FarmBox:AddToggle("InstantPrompt", {
-			Text = "Instant Prompts",
-			Default = false,
-			Callback = function(value)
-				setInstantPrompt(value)
-			end,
-		})
+	FarmBox:AddToggle("InstantPrompt", {
+		Text = "Instant Prompts",
+		Default = false,
+		Callback = setInstantPrompt,
+	})
 
-		BackpackLabel = FarmBox:AddLabel("Bag 0.0 / 0.0 kg")
-	end
-
-	install()
+	BackpackLabel = FarmBox:AddLabel("Bag 0.0 / 0.0 kg")
 end
 
 do
-	local function install()
-		local MoveBox = Tabs.movement:AddLeftGroupbox("Movement", "zap")
+	local MoveBox = Tabs.movement:AddLeftGroupbox("Movement", "zap")
 
-		MoveBox:AddToggle("SpeedBoost", {
-			Text = "Speed Boost",
-			Default = false,
-			Callback = function(value)
-				nulltime.setSpeedBoost(value, nulltime.SpeedValue)
-			end,
-		})
+	MoveBox:AddToggle("SpeedBoost", {
+		Text = "Speed Boost",
+		Default = false,
+		Callback = function(value) nulltime.setSpeedBoost(value, nulltime.SpeedValue) end,
+	})
 
-		MoveBox:AddSlider("SpeedValue", {
-			Text = "Speed",
-			Default = 35,
-			Min = 16,
-			Max = 200,
-			Rounding = 0,
-			Callback = function(value)
-				nulltime.SpeedValue = value
-			end,
-		})
+	MoveBox:AddSlider("SpeedValue", {
+		Text = "Speed",
+		Default = 35, Min = 16, Max = 200, Rounding = 0,
+		Callback = function(value) nulltime.SpeedValue = value end,
+	})
 
-		MoveBox:AddDivider()
+	MoveBox:AddDivider()
 
-		MoveBox:AddToggle("FlyToggle", {
-			Text = "Fly",
-			Default = false,
-			Callback = function(value)
-				nulltime.FlyEnabled = value
-			end,
-		})
+	MoveBox:AddToggle("FlyToggle", {
+		Text = "Fly",
+		Default = false,
+		Callback = function(value) nulltime.FlyEnabled = value end,
+	})
 
-		MoveBox:AddSlider("FlySpeed", {
-			Text = "Fly Speed",
-			Default = 50,
-			Min = 10,
-			Max = 300,
-			Rounding = 0,
-			Callback = function(value)
-				nulltime.FlySpeed = value
-			end,
-		})
-	end
-
-	install()
+	MoveBox:AddSlider("FlySpeed", {
+		Text = "Fly Speed",
+		Default = 50, Min = 10, Max = 300, Rounding = 0,
+		Callback = function(value) nulltime.FlySpeed = value end,
+	})
 end
 
 do
-	local function install()
-		local TopBox = Tabs.teleports:AddLeftGroupbox("Top Crystals", "trophy")
+	local TopBox = Tabs.teleports:AddLeftGroupbox("Top Crystals", "trophy")
 
-		local function fmtValue(_, score)
-			return formatShort(score, "$")
-		end
+	local function fmtValue(_, score) return formatShort(score, "$") end
+	local function fmtLuck(_, score) return formatLuck(score) end
+	local function fmtWeight(inst) return formatWeight(crystalWeight(inst)) end
 
-		local function fmtLuck(_, score)
-			return formatLuck(score)
-		end
+	for rank = 1, 3 do
+		TopBox:AddButton(string.format("Top %d Value", rank), function() tpToRank(crystalValue, rank, fmtValue) end)
+	end
+	TopBox:AddDivider()
 
-		local function fmtWeight(inst)
-			return formatWeight(crystalWeight(inst))
-		end
+	for rank = 1, 3 do
+		TopBox:AddButton(string.format("Top %d Luck", rank), function() tpToRank(crystalLuck, rank, fmtLuck) end)
+	end
+	TopBox:AddDivider()
 
-		for rank = 1, 3 do
-			TopBox:AddButton(string.format("Top %d Value", rank), function()
-				tpToRank(crystalValue, rank, fmtValue)
-			end)
-		end
-
-		TopBox:AddDivider()
-
-		for rank = 1, 3 do
-			TopBox:AddButton(string.format("Top %d Luck", rank), function()
-				tpToRank(crystalLuck, rank, fmtLuck)
-			end)
-		end
-
-		TopBox:AddDivider()
-
-		for rank = 1, 3 do
-			TopBox:AddButton(string.format("Top %d Weight", rank), function()
-				tpToRank(crystalWeight, rank, fmtWeight)
-			end)
-		end
-
-		local TeleportBox = Tabs.teleports:AddRightGroupbox("Teleports", "crosshair")
-
-		TeleportBox:AddToggle("AimTeleport", {
-			Text = "Aim Teleport",
-			Default = false,
-			Callback = function(value)
-				aimTpEnabled = value
-			end,
-		})
-
-		TeleportBox:AddLabel("Aim Teleport"):AddKeyPicker("AimTeleportKey", {
-			Default = "F",
-			NoUI = false,
-			Text = "Aim Teleport",
-			Mode = "Always",
-		})
-
-		TeleportBox:AddDivider()
-
-		TeleportBox:AddButton("TP Home", function()
-			if fireRemote(GoHome, "home") then
-				Library:Notify("Teleporting home", 2)
-			else
-				Library:Notify("Remote unavailable", 2)
-			end
-		end)
-
-		TeleportBox:AddButton("Sell All", function()
-			if doSell() then
-				Library:Notify("Selling all crystals", 2)
-			end
-		end)
+	for rank = 1, 3 do
+		TopBox:AddButton(string.format("Top %d Weight", rank), function() tpToRank(crystalWeight, rank, fmtWeight) end)
 	end
 
-	install()
+	local TeleportBox = Tabs.teleports:AddRightGroupbox("Teleports", "crosshair")
+
+	TeleportBox:AddToggle("AimTeleport", {
+		Text = "Aim Teleport",
+		Default = false,
+		Callback = function(value) aimTpEnabled = value end,
+	})
+
+	TeleportBox:AddLabel("Aim Teleport"):AddKeyPicker("AimTeleportKey", {
+		Default = "F", NoUI = false, Text = "Aim Teleport", Mode = "Always",
+	})
+
+	TeleportBox:AddDivider()
+
+	TeleportBox:AddButton("TP Home", function()
+		if fireRemote(GoHome, "home") then
+			Library:Notify("Teleporting home", 2)
+		else
+			Library:Notify("Remote unavailable", 2)
+		end
+	end)
+
+	TeleportBox:AddButton("Sell All", function()
+		if doSell() then Library:Notify("Selling all crystals", 2) end
+	end)
 end
 
 ThemeManager:SetLibrary(Library)
@@ -2848,3 +1900,4 @@ SaveManager:BuildConfigSection(SettingsTab)
 ThemeManager:ApplyToTab(SettingsTab)
 
 SaveManager:LoadAutoloadConfig()
+
