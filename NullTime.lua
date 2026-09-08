@@ -1,4 +1,4 @@
--- NullTime V3 (Fully Complete - Auto Dupe Instant & Auto-Save)
+-- NullTime V3 (uncontinued)
 
 local function safeGetService(serviceName)
     local ok, service = pcall(game.GetService, game, serviceName)
